@@ -4,10 +4,16 @@
 [versions]
 guava = "33.5.0-jre"
 junit-jupiter-engine = "6.0.1"
+javafx = "21"
+javafx-plugin = "0.0.13"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit-jupiter-engine" }
+javafx-controls = { module = "org.openjfx:javafx-controls", version.ref = "javafx" }
+javafx-graphics = { module = "org.openjfx:javafx-graphics", version.ref = "javafx" }
+javafx-fxml = { module = "org.openjfx:javafx-fxml", version.ref = "javafx" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.3.0" }
+javafx-plugin = { id = "org.openjfx.javafxplugin", version.ref = "javafx-plugin" }
