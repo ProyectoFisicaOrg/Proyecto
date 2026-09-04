@@ -10,6 +10,8 @@ import java.io.File
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
     alias(libs.plugins.kotlin.jvm)
+    // Serialization for JSON output
+    alias(libs.plugins.kotlin.serialization)
 
     // Apply the application plugin to add support for building a CLI application in Java.
     application
@@ -32,12 +34,8 @@ dependencies {
     // This dependency is used by the application.
     implementation(libs.guava)
 
-    // JavaFX dependencies with platform classifier
-    val javafxVersion = "21.0.1"
-    implementation("org.openjfx:javafx-controls:$javafxVersion:linux")
-    implementation("org.openjfx:javafx-graphics:$javafxVersion:linux")
-    implementation("org.openjfx:javafx-fxml:$javafxVersion:linux")
-    implementation("org.openjfx:javafx-base:$javafxVersion:linux")
+    // Kotlin Serialization for JSON output
+    implementation(libs.kotlinx.serialization.json)
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
