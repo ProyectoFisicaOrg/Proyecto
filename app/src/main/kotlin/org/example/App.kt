@@ -1,9 +1,11 @@
 package org.example
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
+import org.example.model.Target
+
+// PhysicsParams se toma de org.example (Physics.kt)
 
 fun main() {
+    // Parámetros de entrada del usuario
     val params = PhysicsParams(
         angleDeg = 45.0,
         initialVelocity = 25.0,
@@ -11,8 +13,14 @@ fun main() {
         mass = 2.0
     )
 
-    val data = SimulationRunner().run(params)
+    // Generar matriz de trayectoria (Issue 2.1) a través de la fábrica
+    val matrix = TrajectorySimulationFactory.generateMatrix(params)
+    println(matrix)
 
-    val json = Json { prettyPrint = true }
-    println(json.encodeToString<TrajectoryData>(data))
+    // Detectar colisión con un objetivo circular en el suelo
+    val target = Target(centerX = 50.0, radius = 2.0)
+    val collisionDetector = TrajectorySimulationFactory.createCollisionDetector()
+    val collision = collisionDetector.checkCollision(matrix, target)
+    println("Colisión con objetivo en x=${target.centerX}: ${collision.status}")
+    println(collision.message)
 }
