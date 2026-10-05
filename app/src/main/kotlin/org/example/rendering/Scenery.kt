@@ -120,7 +120,7 @@ class Scenery(
             Pair(cx - 0.5 * b, cy - 0.7 * b), // Arriba izquierda.
             Pair(cx + 0.5 * b, cy - 0.8 * b), // Arriba derecha.
             Pair(cx + 1.5 * b, cy - 0.3 * b), // Derecha (base).
-            Pair(cx + 0.8 * b, cy + 0.4 * b)  // Abajo centro.
+            Pair(cx + 0.1 * b, cy + 0.3 * b)  // Abajo centro.
         )
         // Dibuja cada círculo con su relleno y contorno.
         for ((x, y) in circles) {
