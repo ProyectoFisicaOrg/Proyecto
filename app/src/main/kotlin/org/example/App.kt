@@ -23,4 +23,8 @@ fun main() {
     val collision = collisionDetector.checkCollision(matrix, target)
     println("Colisión con objetivo en x=${target.centerX}: ${collision.status}")
     println(collision.message)
+
+    // Telemetría e Inspección (Issue 3.1)
+    val state = org.example.telemetry.TelemetryFactory.createApi().getInstantaneousState(matrix, 20.0, 10.0)
+    println("Telemetría en (20, 10): ${state.format()}")
 }
