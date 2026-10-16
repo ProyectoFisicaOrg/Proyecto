@@ -36,8 +36,8 @@ class SamplingTrajectoryMatrixGenerator(
 ) : TrajectoryMatrixGenerator {
 
     companion object {
-        /** Muestreo por defecto: 240 puntos por segundo de vuelo para máxima fluidez */
-        const val DEFAULT_SAMPLES_PER_SECOND = 240
+        /** Muestreo por defecto: 120 puntos por segundo de vuelo */
+        const val DEFAULT_SAMPLES_PER_SECOND = 120
     }
 
     override fun generate(params: PhysicsParams, samplesPerSecond: Int): TrajectoryMatrix {

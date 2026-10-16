@@ -179,10 +179,20 @@ class Scenery(
         gc.stroke = Color.rgb(220, 230, 240, 0.8)
         gc.lineWidth = 1.5
 
-        val b = 25.0
-        for (c in cloudCircles) {
-            gc.fillOval(c.cx - b, c.cy - b * 0.7, c.radiusX, c.radiusY)
-            gc.strokeOval(c.cx - b, c.cy - b * 0.7, c.radiusX, c.radiusY)
+        // Tamaño base de cada círculo, escalado.
+        val b = 25.0 * scale
+        // Posiciones relativas de los 5 círculos que forman la nube.
+        val circles = listOf(
+            Pair(cx - 1.5 * b, cy),          // Izquierda (base).
+            Pair(cx - 0.5 * b, cy - 0.7 * b), // Arriba izquierda.
+            Pair(cx + 0.5 * b, cy - 0.8 * b), // Arriba derecha.
+            Pair(cx + 1.5 * b, cy - 0.3 * b), // Derecha (base).
+            Pair(cx + 0.1 * b, cy + 0.3 * b)  // Abajo centro.
+        )
+        // Dibuja cada círculo con su relleno y contorno.
+        for ((x, y) in circles) {
+            gc.fillOval(x - b, y - b * 0.7, b * 2.0, b * 1.4)
+            gc.strokeOval(x - b, y - b * 0.7, b * 2.0, b * 1.4)
         }
     }
 

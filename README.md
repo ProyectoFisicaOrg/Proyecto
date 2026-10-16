@@ -1,2 +1,2 @@
-# Proyecto 
-Matteo Catania y Agustin Marañon.
+# Proyecto
+Matteo Catania y Agustín Marañón
