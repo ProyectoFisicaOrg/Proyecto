@@ -13,16 +13,18 @@ import javafx.scene.paint.Color       // Colores de los textos.
 import javafx.scene.text.Font         // Tipografías.
 import javafx.scene.text.FontWeight   // Grusos de tipografía.
 
-// Import del estado de la simulación.
+// Import del estado de la simulación y colisiones.
+import org.example.collision.CollisionResult
+import org.example.collision.CollisionStatus
 import org.example.model.SimulationState
 
 /**
  * Panel de controles de la simulación (SRP).
  *
  * Su única responsabilidad es construir y gestionar la interfaz de
- * controles: los sliders (ángulo, velocidad, gravedad y masa) y el
- * botón de disparo. Traduce los cambios de los sliders al
- * [SimulationState] y delega el disparo en el callback [onFire].
+ * controles: los sliders (ángulo, velocidad, gravedad y masa), el
+ * botón de disparo y el área de estado de colisión. Traduce los cambios
+ * de los sliders al [SimulationState] y delega el disparo en el callback [onFire].
  * Permite habilitar/deshabilitar los controles durante la animación.
  *
  * @param state Estado al que se escriben los valores de los sliders.
@@ -33,6 +35,7 @@ class ControlPanel(
     private val state: SimulationState,
     private val onFire: () -> Unit,
     private val onAngleChange: () -> Unit,
+    private val onReset: () -> Unit = {},
 ) {
 
     // Referencias a los controles, inicializadas dentro de build().
@@ -41,10 +44,12 @@ class ControlPanel(
     private lateinit var gravitySlider: Slider    // Slider de la gravedad.
     private lateinit var massSlider: Slider       // Slider de la masa.
     private lateinit var fireButton: Button       // Botón de disparo.
+    private lateinit var resetButton: Button     // Botón para reiniciar la simulación.
     private lateinit var angleLabel: Label        // Etiqueta del valor del ángulo.
     private lateinit var velocityLabel: Label     // Etiqueta del valor de la velocidad.
     private lateinit var gravityLabel: Label      // Etiqueta del valor de la gravedad.
     private lateinit var massLabel: Label         // Etiqueta del valor de la masa.
+    private lateinit var statusLabel: Label       // Etiqueta de resultado de colisión.
 
     /**
      * Construye y devuelve el panel completo de controles (VBox).
@@ -66,13 +71,27 @@ class ControlPanel(
         val gravityBox = createControlRow("GRAVEDAD (m/s²)", gravitySlider, gravityLabel)
         val massBox = createControlRow("MASA (kg)", massSlider, massLabel)
 
+        // Tarjeta de estado de colisión (Issue 2.1 / 2.2)
+        val statusCard = VBox(4.0, statusLabel).apply {
+            alignment = Pos.CENTER
+            prefWidth = 260.0
+            padding = Insets(8.0)
+            style = """
+                -fx-background-color: #0f172a;
+                -fx-background-radius: 8;
+                -fx-border-color: #334155;
+                -fx-border-width: 1;
+                -fx-border-radius: 8;
+            """.trimIndent()
+        }
+
         // Leyenda de colores de la escena.
         val legend = createLegend()
 
         // Compone el panel vertical con todos los elementos.
-        val panel = VBox(20.0, title, angleBox, velocityBox, gravityBox, massBox, fireButton, legend)
+        val panel = VBox(14.0, title, angleBox, velocityBox, gravityBox, massBox, fireButton, resetButton, statusCard, legend)
         panel.alignment = Pos.TOP_CENTER   // Alinea los elementos arriba y centrados.
-        panel.padding = Insets(25.0)       // Márgenes internos.
+        panel.padding = Insets(20.0)       // Márgenes internos.
         panel.prefWidth = 320.0            // Ancho del panel.
         // Estilo visual: fondo oscuro, bordes redondeados y sombra.
         panel.style = """
@@ -85,6 +104,39 @@ class ControlPanel(
         """.trimIndent()
 
         return panel
+    }
+
+    /**
+     * Muestra en la interfaz el resultado de la colisión calculado por Dev 1.
+     */
+    fun showCollisionResult(result: CollisionResult) {
+        statusLabel.text = when (result.status) {
+            CollisionStatus.HIT -> "🎯 ¡IMPACTO EN EL BLANCO!\n${result.message}"
+            CollisionStatus.MISS -> "❌ FUERA DEL OBJETIVO\n${result.message}"
+            CollisionStatus.UNKNOWN -> "⚠️ ${result.message}"
+        }
+        statusLabel.textFill = when (result.status) {
+            CollisionStatus.HIT -> Color.rgb(74, 222, 128)   // Verde claro
+            CollisionStatus.MISS -> Color.rgb(248, 113, 113)  // Rojo claro
+            CollisionStatus.UNKNOWN -> Color.rgb(251, 146, 60) // Naranja
+        }
+    }
+
+    /**
+     * Muestra una notificación visual informando que el proyectil salió del cuadrado
+     * y el juego fue reiniciado.
+     */
+    fun showOutOfBoundsMessage() {
+        statusLabel.text = "⚠️ ¡FUERA DEL CUADRADO!\nJuego reiniciado"
+        statusLabel.textFill = Color.rgb(251, 146, 60)
+    }
+
+    /**
+     * Limpia o prepara el mensaje de estado para un nuevo disparo.
+     */
+    fun clearCollisionResult() {
+        statusLabel.text = "🚀 Proyectil en vuelo..."
+        statusLabel.textFill = Color.rgb(148, 163, 184)
     }
 
     /**
@@ -120,6 +172,16 @@ class ControlPanel(
         gravityLabel = createValueLabel(String.format("%.1f", state.gravity)) // Gravedad inicial.
         massLabel = createValueLabel(state.mass.toInt().toString())          // Masa inicial.
 
+        // --- Etiqueta de estado y colisiones ---
+        statusLabel = Label("Arrastra el objetivo y presiona DISPARAR").apply {
+            font = Font.font("System", FontWeight.MEDIUM, 11.0)
+            textFill = Color.rgb(148, 163, 184)
+            isWrapText = true
+            alignment = Pos.CENTER
+            textAlignment = javafx.scene.text.TextAlignment.CENTER
+            maxWidth = 240.0
+        }
+
         // --- Botón de disparo ---
         fireButton = Button("DISPARAR").apply {
             font = Font.font("System", FontWeight.BOLD, 14.0)  // Tipografía del botón.
@@ -134,6 +196,20 @@ class ControlPanel(
             """.trimIndent()
             // Al presionarlo invoca al callback de disparo.
             setOnAction { onFire() }
+        }
+
+        // --- Botón de reinicio manual ---
+        resetButton = Button("REINICIAR").apply {
+            font = Font.font("System", FontWeight.SEMI_BOLD, 12.0)
+            prefWidth = 260.0
+            prefHeight = 34.0
+            style = """
+                -fx-background-color: #334155;
+                -fx-text-fill: #e2e8f0;
+                -fx-background-radius: 8;
+                -fx-cursor: hand;
+            """.trimIndent()
+            setOnAction { onReset() }
         }
 
         // --- Listeners: mantienen el estado sincronizado con los sliders ---

@@ -19,11 +19,15 @@ import javafx.scene.paint.Stop             // Parada de un gradiente.
 import javafx.stage.Stage                  // Ventana principal.
 
 // === Imports de los componentes propios de la aplicación ===
+import org.example.TrajectorySimulationFactory
 import org.example.animation.AnimationEngine   // Motor de animación.
+import org.example.collision.CollisionStatus
 import org.example.model.SimulationState       // Estado de la simulación.
-import org.example.physics.MockPhysicsEngine   // Implementación de física mock.
+import org.example.rendering.DefaultCoordinateTransformer // Conversor de coordenadas modelo <-> canvas.
+import org.example.rendering.PathRenderer      // Renderizador de estela continua.
 import org.example.rendering.SceneConfig       // Configuración geométrica.
 import org.example.rendering.SceneRenderer     // Orquestador de dibujo.
+import org.example.rendering.TargetRenderer    // Renderizador de diana arrastrable.
 import org.example.ui.ControlPanel             // Panel de controles.
 
 /**
@@ -32,13 +36,12 @@ import org.example.ui.ControlPanel             // Panel de controles.
  * Arquitectura orientada a objetos que sigue los principios SOLID:
  *  - SRP: cada clase tiene una única responsabilidad (controles, render,
  *    física, animación, estado y entrada).
- *  - OCP: extensible sin modificar el código existente (nuevos motores de
- *    física sin tocar el resto).
- *  - LSP: cualquier implementación de [PhysicsEngine] es intercambiable.
- *  - ISP: interfaces pequeñas y específicas ([PhysicsEngine] con un
- *    único método).
- *  - DIP: los módulos de alto nivel dependen de la abstracción
- *    [PhysicsEngine], no de una implementación concreta.
+ *  - OCP: extensible sin modificar el código existente (nuevos generadores o detectores
+ *    sin tocar la animación o el render).
+ *  - LSP: cualquier implementación de [CollisionDetector] o [TrajectoryMatrixGenerator] es intercambiable.
+ *  - ISP: interfaces pequeñas y específicas ([CollisionListener], [CoordinateTransformer]).
+ *  - DIP: los módulos de alto nivel dependen de abstracciones,
+ *    no de implementaciones concretas.
  *
  * Está clase ES EL PUNTO DE ENTRADA: su única responsabilidad es crear
  * los objetos del sistema, conectarlos entre sí y mostrar la ventana.
@@ -65,6 +68,8 @@ class CannonSimulation : Application() {
         val state = SimulationState()
         // Configuración geométrica (medidas del canvas y del cañón).
         val cfg = SceneConfig()
+        // Transformador de coordenadas (metros físicos <-> píxeles canvas) (DIP).
+        val transformer = DefaultCoordinateTransformer(cfg, pixelsPerMeter = 2.5)
 
         // --- 2. Canvas y su contexto gráfico ---
         // Lienzo del tamaño definido en la configuración.
@@ -72,41 +77,100 @@ class CannonSimulation : Application() {
         // Contexto gráfico: permite dibujar sobre el canvas.
         val gc = canvas.graphicsContext2D
 
-        // --- 3. Motor de render y motor de animación ---
-        // El renderer se encarga de pintar cada fotograma.
-        val sceneRenderer = SceneRenderer(gc, state, cfg)
-        // El motor de animación consulta la física (como abstracción) y
-        // repinta mediante el callback onUpdate; al terminar rearma los
-        // controles vía onFinished.
-        val animationEngine = AnimationEngine(
-            state = state,                    // Estado que actualiza.
-            physics = MockPhysicsEngine(),    // Abstracción PhysicalEngine (DIP).
-            cfg = cfg,                        // Configuración para límites.
-            onUpdate = { sceneRenderer.render() },       // Repinta el fotograma.
-            onFinished = { controls.setAnimating(false) } // Habilita controles al terminar.
+        // --- 3. Renderizadores de estela y diana ---
+        // Renderizador de la estela continua del proyectil (Issue 2.2).
+        val pathRenderer = PathRenderer(gc)
+
+        // Renderer orquestador (lateinit porque el callback de targetRenderer lo referencia).
+        lateinit var sceneRenderer: SceneRenderer
+
+        // Renderizador de la diana arrastrable con notificación de cambios (Issue 2.2).
+        val targetRenderer = TargetRenderer(
+            gc = gc,
+            cfg = cfg,
+            canvas = canvas,
+            state = state,
+            // Cada vez que el usuario mueve la diana, se actualiza el estado y se repinta.
+            onTargetPositionChanged = { newX ->
+                state.targetX = newX
+                sceneRenderer.render()
+            },
+            // Cada fotograma del pulso de la diana repinta la escena completa.
+            onRepaint = { sceneRenderer.render() }
         )
 
-        // --- 4. Panel de controles ---
-        // Crea la UI (sliders + botón) y conecta sus callbacks con el motor.
+        // --- 4. Motor de render y dependencias de física ---
+        // El renderer orquesta el dibujo de todos los componentes.
+        sceneRenderer = SceneRenderer(gc, state, cfg, pathRenderer, targetRenderer)
+
+        // Abstracciones de física y colisiones entregadas por el módulo de Dev 1 (DIP)
+        val trajectoryGenerator = TrajectorySimulationFactory.createGenerator()
+        val collisionDetector = TrajectorySimulationFactory.createCollisionDetector()
+
+        // Motor de animación de vuelo (Issue 2.2):
+        // Recorre de forma fluida la trayectoria entregada por Dev 1,
+        // acumula el rastro continuo y valida colisiones al tocar el suelo.
+        // Si sale del cuadrado (canvas), reinicia el juego automáticamente.
+        lateinit var animationEngine: AnimationEngine
+        animationEngine = AnimationEngine(
+            state = state,
+            cfg = cfg,
+            transformer = transformer,
+            trajectoryGenerator = trajectoryGenerator,
+            collisionDetector = collisionDetector,
+            onUpdate = { sceneRenderer.render() },
+            onFinished = { controls.setAnimating(false) },
+            onTick = { x: Double, y: Double -> pathRenderer.addPoint(x, y) },
+            collisionListener = { result ->
+                // Notificación del validador de colisión del Issue 2.1 exactamente al impactar
+                controls.showCollisionResult(result)
+                println("=== RESULTADO DE IMPACTO (Issue 2.1) ===")
+                println("Estado: ${result.status} | Mensaje: ${result.message}")
+                result.impact?.let { impact ->
+                    println("Detalles: x=%.2f m, tiempo=%.4f s, distCentro=%.2f m"
+                        .format(impact.point.x, impact.impactTime, impact.distanceToCenter))
+                }
+            },
+            onOutOfBounds = {
+                // Si la pelota sale del cuadrado, reinicio automático
+                pathRenderer.clear()
+                controls.setAnimating(false)
+                controls.showOutOfBoundsMessage()
+                println("⚠️ El proyectil salió del cuadrado. Juego reiniciado.")
+            },
+            timeScale = 1.85 // Vuelo más rápido y dinámico (1.85x velocidad real)
+        )
+
+        // --- 5. Panel de controles ---
+        // Crea la UI (sliders + botones) y conecta sus callbacks con el motor.
         controls = ControlPanel(
-            state = state,           // Estado que leen/actualizan los sliders.
+            state = state,
             onFire = {
-                // Al presionar DISPARAR: imprime los valores capturados.
                 println("Disparando con: ángulo=${state.angle.toInt()}°, " +
                         "velocidad=${state.velocity.toInt()} m/s, " +
                         "gravedad=${"%.1f".format(state.gravity)} m/s², " +
                         "masa=${state.mass.toInt()} kg")
-                // Deshabilita controles y botón mientras vuela el proyectil.
+                // Limpia la estela anterior y registra el instante de disparo para el desvanecimiento
+                pathRenderer.clear()
+                pathRenderer.recordLaunch()
+                controls.clearCollisionResult()
                 controls.setAnimating(true)
-                // Inicia la animación del proyectil.
+                // Inicia la animación del proyectil recorriendo la trayectoria de Dev 1
                 animationEngine.start()
             },
-            onAngleChange = { sceneRenderer.render() }  // Repinta al mover el ángulo.
+            onAngleChange = { sceneRenderer.render() },
+            onReset = {
+                // Reinicio manual solicitado desde el panel
+                animationEngine.reset()
+                pathRenderer.clear()
+                controls.clearCollisionResult()
+                sceneRenderer.render()
+            }
         )
         // Construye el panel de controles (VBox) listo para el layout.
         val controlsPanel = controls.build()
 
-        // --- 5. Contenedor del canvas ---
+        // --- 6. Contenedor del canvas ---
         // VBox que envuelve al canvas con estilo y borde.
         val canvasContainer = VBox(canvas).apply {
             alignment = Pos.CENTER  // Centra el canvas.
@@ -120,7 +184,7 @@ class CannonSimulation : Application() {
             """.trimIndent()
         }
 
-        // --- 6. Layout principal ---
+        // --- 7. Layout principal ---
         // HBox: a la izquierda el panel de controles, a la derecha el canvas.
         val mainLayout = HBox(30.0, controlsPanel, canvasContainer)
         mainLayout.alignment = Pos.CENTER   // Centra el contenido.
@@ -128,7 +192,7 @@ class CannonSimulation : Application() {
         // Permite que el contenedor del canvas ocupe el espacio sobrante.
         HBox.setHgrow(canvasContainer, Priority.ALWAYS)
 
-        // --- 7. Fondo cielo/pasto para toda la ventana ---
+        // --- 8. Fondo cielo/pasto para toda la ventana ---
         // Gradiente de fondo de la ventana (cielo a pasto).
         val skyGradient = LinearGradient(
             0.0, 0.0, 0.0, 1.0, true, CycleMethod.NO_CYCLE,
@@ -139,7 +203,7 @@ class CannonSimulation : Application() {
         // Aplica el gradiente como fondo del layout principal.
         mainLayout.background = Background(BackgroundFill(skyGradient, CornerRadii.EMPTY, Insets.EMPTY))
 
-        // --- 8. Scene y Stage ---
+        // --- 9. Scene y Stage ---
         // Crea la escena con el tamaño del canvas más el ancho del panel.
         val scene = Scene(mainLayout, cfg.canvasWidth + 400.0, cfg.canvasHeight + 60.0)
         primaryStage.scene = scene      // Asigna la escena a la ventana.
@@ -147,7 +211,14 @@ class CannonSimulation : Application() {
         primaryStage.minHeight = 650.0  // Alto mínimo de la ventana.
         primaryStage.show()             // Muestra la ventana.
 
-        // --- 9. Render inicial ---
+        // --- 10. Instala el gesto de arrastre y el pulso de la diana ---
+        // Ata los eventos de ratón (pressed, dragged, released) al canvas.
+        // Y arranca el bucle de animación del pulso de la diana.
+        // Se llama después de show() para que el canvas esté visible.
+        targetRenderer.installDrag()
+        targetRenderer.startPulse()
+
+        // --- 11. Render inicial ---
         // Dibuja el primer fotograma (fondo, cañón y proyectil en origen).
         sceneRenderer.render()
     }

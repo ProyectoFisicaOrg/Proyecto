@@ -34,6 +34,13 @@ dependencies {
     // This dependency is used by the application.
     implementation(libs.guava)
 
+    // JavaFX dependencies with platform classifier
+    val javafxVersion = "21.0.1"
+    implementation("org.openjfx:javafx-controls:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-graphics:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-fxml:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-base:$javafxVersion:linux")
+
     // Kotlin Serialization for JSON output
     implementation(libs.kotlinx.serialization.json)
 }

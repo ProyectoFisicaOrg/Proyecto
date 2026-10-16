@@ -1,5 +1,7 @@
 package org.example.model
 
+import org.example.collision.CollisionResult
+
 /**
  * Contenedor del estado mutable de la simulación (SRP).
  *
@@ -36,4 +38,13 @@ class SimulationState {
 
     /** Coordenada vertical actual del proyectil en el canvas. */
     var projectileY: Double = 470.0
+
+    /** Posición X de la diana en el canvas (cambia con el arrastre). */
+    var targetX: Double = 750.0
+
+    /** Radio de la diana en píxeles de canvas. */
+    var targetRadius: Double = 20.0
+
+    /** Último resultado de colisión evaluado al impactar el suelo. */
+    var lastCollisionResult: CollisionResult? = null
 }
