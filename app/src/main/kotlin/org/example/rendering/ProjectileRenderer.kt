@@ -9,12 +9,14 @@ import javafx.scene.text.FontWeight
 import javafx.scene.text.TextAlignment
 
 /**
- * Dibuja el proyectil, su estela y el indicador de ángulo (SRP).
+ * Dibuja el proyectil y el indicador de ángulo (SRP).
  *
  * Su única responsabilidad es pintar los elementos dinámicos que se
  * superponen al escenario. Recibe el [GraphicsContext] y la [SceneConfig]
  * por constructor (inyección de dependencias), y dibuja a partir de las
  * posiciones que se le pasan en cada método.
+ *
+ * La estela (trail) se delega a PathRenderer para respetar SRP.
  */
 class ProjectileRenderer(
     // Contexto gráfico del canvas sobre el que se dibuja.
@@ -22,6 +24,12 @@ class ProjectileRenderer(
     // Configuración geométrica (se usa para el indicador de ángulo).
     private val cfg: SceneConfig,
 ) {
+    // Cache de objetos gráficos inmutables para rendimiento a 60+ FPS (SRP)
+    private val projectileBodyColor = Color.rgb(66, 153, 225)
+    private val projectileHighlightColor = Color.rgb(99, 179, 237)
+    private val arcStrokeColor = Color.rgb(233, 69, 96, 0.5)
+    private val labelTextColor = Color.rgb(233, 69, 96)
+    private val labelFont = Font.font("Monospace", FontWeight.BOLD, 14.0)
 
     /**
      * Dibuja el proyectil (una esfera azul) con un brillo/reflejo.
@@ -31,30 +39,12 @@ class ProjectileRenderer(
      */
     fun drawProjectile(x: Double, y: Double) {
         // Cuerpo principal del proyectil: un círculo azul centrado en (x, y).
-        gc.fill = Color.rgb(66, 153, 225)
+        gc.fill = projectileBodyColor
         gc.fillOval(x - 10.0, y - 10.0, 20.0, 20.0)
 
         // Brillo/reflejo: un círculo más claro y pequeño en la parte superior izquierda.
-        gc.fill = Color.rgb(99, 179, 237)
+        gc.fill = projectileHighlightColor
         gc.fillOval(x - 12.0, y - 12.0, 8.0, 8.0)
-    }
-
-    /**
-     * Dibuja la estela discontinua desde la boca del cañón hasta el proyectil.
-     *
-     * @param fromX, fromY Origen de la estela (boca del cañón).
-     * @param toX, toY     Extremo de la estela (proyectil).
-     */
-    fun drawTrail(fromX: Double, fromY: Double, toX: Double, toY: Double) {
-        // Color azul translúcido para la línea de la estela.
-        gc.stroke = Color.rgb(66, 153, 225, 0.25)
-        gc.lineWidth = 3.0
-        // Línea discontinua (8 px de trazo, 8 px de espacio).
-        gc.setLineDashes(8.0, 8.0)
-        // Traza la línea que une cañón y proyectil.
-        gc.strokeLine(fromX, fromY, toX, toY)
-        // Restablece el estilo de línea discontinuo a contínuo.
-        gc.setLineDashes()
     }
 
     /** Dibuja el arco de ángulo y la etiqueta con el ángulo actual. */
@@ -68,7 +58,7 @@ class ProjectileRenderer(
         val by = cfg.cannonBaseY
 
         // --- Arco discontinuo que indica el sector del ángulo ---
-        gc.stroke = Color.rgb(233, 69, 96, 0.5)
+        gc.stroke = arcStrokeColor
         gc.lineWidth = 2.0
         gc.setLineDashes(6.0, 6.0)
         // Dibuja un arco que va desde 90° (arriba) decreciendo en `angle` grados.
@@ -88,8 +78,8 @@ class ProjectileRenderer(
         val labelY = by + Math.sin(labelAngle) * (radius + 25.0)
 
         // Configura el relleno y la fuente del texto.
-        gc.fill = Color.rgb(233, 69, 96)
-        gc.font = Font.font("Monospace", FontWeight.BOLD, 14.0)
+        gc.fill = labelTextColor
+        gc.font = labelFont
         gc.textAlign = TextAlignment.CENTER
         // Dibuja el texto del ángulo, centrado horizontalmente.
         gc.fillText("${angle.toInt()}°", labelX - 15.0, labelY + 5.0)
