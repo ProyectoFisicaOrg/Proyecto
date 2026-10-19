@@ -10,8 +10,19 @@ import javafx.scene.paint.Stop
 /** Datos inmutables de un rayo de sol precalculado para evitar allocations en cada frame */
 private data class SunRay(val startX: Double, val startY: Double, val endX: Double, val endY: Double)
 
-/** Datos inmutables de un círculo de nube precalculado */
-private data class CloudCircle(val cx: Double, val cy: Double, val radiusX: Double, val radiusY: Double)
+/** Datos inmutables de un óvalo de nube precalculado */
+private data class CloudCircle(val x: Double, val y: Double, val width: Double, val height: Double) {
+    companion object {
+        fun fromCenter(centerX: Double, centerY: Double, width: Double, height: Double): CloudCircle {
+            return CloudCircle(
+                x = centerX - width / 2.0,
+                y = centerY - height / 2.0,
+                width = width,
+                height = height
+            )
+        }
+    }
+}
 
 /** Datos inmutables de un mechón de pasto precalculado */
 private data class GrassBlade(val xPos: Double, val bend: Double, val height: Double)
@@ -84,12 +95,14 @@ class Scenery(
         val b = 25.0
         val cx = 180.0
         val cy = 100.0
+        val width = b * 2.0
+        val height = b * 1.4
         cloudCircles = listOf(
-            CloudCircle(cx - 1.5 * b, cy, b * 2.0, b * 1.4),
-            CloudCircle(cx - 0.5 * b, cy - 0.7 * b, b * 2.0, b * 1.4),
-            CloudCircle(cx + 0.5 * b, cy - 0.8 * b, b * 2.0, b * 1.4),
-            CloudCircle(cx + 1.5 * b, cy - 0.3 * b, b * 2.0, b * 1.4),
-            CloudCircle(cx + 0.8 * b, cy + 0.4 * b, b * 2.0, b * 1.4)
+            CloudCircle.fromCenter(cx - 1.5 * b, cy, width, height),          // Izquierda (base).
+            CloudCircle.fromCenter(cx - 0.5 * b, cy - 0.7 * b, width, height), // Arriba izquierda.
+            CloudCircle.fromCenter(cx + 0.5 * b, cy - 0.8 * b, width, height), // Arriba derecha.
+            CloudCircle.fromCenter(cx + 1.5 * b, cy - 0.3 * b, width, height), // Derecha (base).
+            CloudCircle.fromCenter(cx + 0.1 * b, cy + 0.3 * b, width, height)  // Abajo centro.
         )
 
         // 3. Precalcular mechones de pasto con semilla determinista 12345
@@ -173,26 +186,16 @@ class Scenery(
         gc.strokeOval(sunX - sunRadius, sunY - sunRadius, sunRadius * 2.0, sunRadius * 2.0)
     }
 
-    /** Dibuja una nube suave estilo cartoon compuesta por 5 círculos superpuestos. */
+    /** Dibuja una nube suave estilo cartoon compuesta por 5 círculos superpuestos precalculados. */
     private fun drawCloud() {
         gc.fill = Color.rgb(255, 255, 255, 0.95)
         gc.stroke = Color.rgb(220, 230, 240, 0.8)
         gc.lineWidth = 1.5
 
-        // Tamaño base de cada círculo, escalado.
-        val b = 25.0 * scale
-        // Posiciones relativas de los 5 círculos que forman la nube.
-        val circles = listOf(
-            Pair(cx - 1.5 * b, cy),          // Izquierda (base).
-            Pair(cx - 0.5 * b, cy - 0.7 * b), // Arriba izquierda.
-            Pair(cx + 0.5 * b, cy - 0.8 * b), // Arriba derecha.
-            Pair(cx + 1.5 * b, cy - 0.3 * b), // Derecha (base).
-            Pair(cx + 0.1 * b, cy + 0.3 * b)  // Abajo centro.
-        )
-        // Dibuja cada círculo con su relleno y contorno.
-        for ((x, y) in circles) {
-            gc.fillOval(x - b, y - b * 0.7, b * 2.0, b * 1.4)
-            gc.strokeOval(x - b, y - b * 0.7, b * 2.0, b * 1.4)
+        // Dibuja cada círculo precalculado con su relleno y contorno.
+        for (circle in cloudCircles) {
+            gc.fillOval(circle.x, circle.y, circle.width, circle.height)
+            gc.strokeOval(circle.x, circle.y, circle.width, circle.height)
         }
     }
 

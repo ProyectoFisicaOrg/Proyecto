@@ -28,6 +28,8 @@ import org.example.rendering.PathRenderer      // Renderizador de estela continu
 import org.example.rendering.SceneConfig       // Configuración geométrica.
 import org.example.rendering.SceneRenderer     // Orquestador de dibujo.
 import org.example.rendering.TargetRenderer    // Renderizador de diana arrastrable.
+import org.example.scrubbing.PhysicsTrajectoryInspectorAdapter // Adaptador de física para inspección (Issue 3.2).
+import org.example.scrubbing.ScrubbingController // Controlador de interacción y arrastre sobre trayectoria (Issue 3.2).
 import org.example.ui.ControlPanel             // Panel de controles.
 
 /**
@@ -103,14 +105,23 @@ class CannonSimulation : Application() {
         // El renderer orquesta el dibujo de todos los componentes.
         sceneRenderer = SceneRenderer(gc, state, cfg, pathRenderer, targetRenderer)
 
+        // Controlador de arrastre con mouse (Scrubbing) y HUD (Issue 3.2)
+        val scrubbingController = ScrubbingController(
+            state = state,
+            transformer = transformer,
+            cfg = cfg,
+            onRepaint = { sceneRenderer.render() }
+        )
+        sceneRenderer.scrubbingController = scrubbingController
+
         // Abstracciones de física y colisiones entregadas por el módulo de Dev 1 (DIP)
         val trajectoryGenerator = TrajectorySimulationFactory.createGenerator()
         val collisionDetector = TrajectorySimulationFactory.createCollisionDetector()
 
-        // Motor de animación de vuelo (Issue 2.2):
+        // Motor de animación de vuelo (Issue 2.2 + Issue 3.2):
         // Recorre de forma fluida la trayectoria entregada por Dev 1,
         // acumula el rastro continuo y valida colisiones al tocar el suelo.
-        // Si sale del cuadrado (canvas), reinicia el juego automáticamente.
+        // Al finalizar, habilita la interacción de arrastre sobre la trayectoria (Issue 3.2).
         lateinit var animationEngine: AnimationEngine
         animationEngine = AnimationEngine(
             state = state,
@@ -133,10 +144,18 @@ class CannonSimulation : Application() {
             },
             onOutOfBounds = {
                 // Si la pelota sale del cuadrado, reinicio automático
+                scrubbingController.disable()
                 pathRenderer.clear()
                 controls.setAnimating(false)
                 controls.showOutOfBoundsMessage()
                 println("⚠️ El proyectil salió del cuadrado. Juego reiniciado.")
+            },
+            onFlightCompleted = { matrix ->
+                // Al completar el vuelo e impactar el suelo: congela la trayectoria y habilita scrubbing (Issue 3.2)
+                pathRenderer.freeze()
+                val inspector = PhysicsTrajectoryInspectorAdapter(matrix, transformer)
+                scrubbingController.enable(inspector)
+                sceneRenderer.render()
             },
             timeScale = 1.85 // Vuelo más rápido y dinámico (1.85x velocidad real)
         )
@@ -150,7 +169,9 @@ class CannonSimulation : Application() {
                         "velocidad=${state.velocity.toInt()} m/s, " +
                         "gravedad=${"%.1f".format(state.gravity)} m/s², " +
                         "masa=${state.mass.toInt()} kg")
-                // Limpia la estela anterior y registra el instante de disparo para el desvanecimiento
+                // Cancela cualquier arrastre pendiente del objetivo, deshabilita scrubbing y limpia la estela anterior
+                targetRenderer.cancelDrag()
+                scrubbingController.disable()
                 pathRenderer.clear()
                 pathRenderer.recordLaunch()
                 controls.clearCollisionResult()
@@ -161,10 +182,15 @@ class CannonSimulation : Application() {
             onAngleChange = { sceneRenderer.render() },
             onReset = {
                 // Reinicio manual solicitado desde el panel
+                scrubbingController.disable()
                 animationEngine.reset()
                 pathRenderer.clear()
                 controls.clearCollisionResult()
                 sceneRenderer.render()
+            },
+            onRandomizeTarget = {
+                // Reubica el objetivo en una posición aleatoria si no está disparando
+                targetRenderer.randomizePosition()
             }
         )
         // Construye el panel de controles (VBox) listo para el layout.
@@ -211,10 +237,10 @@ class CannonSimulation : Application() {
         primaryStage.minHeight = 650.0  // Alto mínimo de la ventana.
         primaryStage.show()             // Muestra la ventana.
 
-        // --- 10. Instala el gesto de arrastre y el pulso de la diana ---
-        // Ata los eventos de ratón (pressed, dragged, released) al canvas.
-        // Y arranca el bucle de animación del pulso de la diana.
-        // Se llama después de show() para que el canvas esté visible.
+        // --- 10. Instala el gesto de arrastre de la diana y el scrubbing sobre la trayectoria ---
+        // Se instala primero el controlador de la capa frontal (proyectil / scrubbing)
+        // para que reciba y consuma eventos con prioridad cuando esté al frente.
+        scrubbingController.install(canvas)
         targetRenderer.installDrag()
         targetRenderer.startPulse()
 

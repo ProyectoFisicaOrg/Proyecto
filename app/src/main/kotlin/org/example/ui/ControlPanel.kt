@@ -30,12 +30,14 @@ import org.example.model.SimulationState
  * @param state Estado al que se escriben los valores de los sliders.
  * @param onFire Callback que se invoca al presionar DISPARAR.
  * @param onAngleChange Callback que se invoca al mover el slider de ángulo.
+ * @param onRandomizeTarget Callback que se invoca para ubicar el objetivo en una posición aleatoria.
  */
 class ControlPanel(
     private val state: SimulationState,
     private val onFire: () -> Unit,
     private val onAngleChange: () -> Unit,
     private val onReset: () -> Unit = {},
+    private val onRandomizeTarget: () -> Unit = {},
 ) {
 
     // Referencias a los controles, inicializadas dentro de build().
@@ -44,6 +46,7 @@ class ControlPanel(
     private lateinit var gravitySlider: Slider    // Slider de la gravedad.
     private lateinit var massSlider: Slider       // Slider de la masa.
     private lateinit var fireButton: Button       // Botón de disparo.
+    private lateinit var randomizeTargetButton: Button // Botón para colocar el objetivo en posición aleatoria.
     private lateinit var resetButton: Button     // Botón para reiniciar la simulación.
     private lateinit var angleLabel: Label        // Etiqueta del valor del ángulo.
     private lateinit var velocityLabel: Label     // Etiqueta del valor de la velocidad.
@@ -89,7 +92,7 @@ class ControlPanel(
         val legend = createLegend()
 
         // Compone el panel vertical con todos los elementos.
-        val panel = VBox(14.0, title, angleBox, velocityBox, gravityBox, massBox, fireButton, resetButton, statusCard, legend)
+        val panel = VBox(14.0, title, angleBox, velocityBox, gravityBox, massBox, fireButton, randomizeTargetButton, resetButton, statusCard, legend)
         panel.alignment = Pos.TOP_CENTER   // Alinea los elementos arriba y centrados.
         panel.padding = Insets(20.0)       // Márgenes internos.
         panel.prefWidth = 320.0            // Ancho del panel.
@@ -156,6 +159,10 @@ class ControlPanel(
         // Deshabilita/habilita el botón y cambia su texto según el estado.
         fireButton.isDisable = animating
         fireButton.text = if (animating) "DISPARANDO..." else "DISPARAR"
+        resetButton.isDisable = animating
+
+        // REQUISITO: Durante el vuelo de la pelota, el botón de objetivo aleatorio queda deshabilitado
+        randomizeTargetButton.isDisable = animating
     }
 
     /** Crea los sliders, etiquetas, botón y sus listeners de cambio. */
@@ -196,6 +203,23 @@ class ControlPanel(
             """.trimIndent()
             // Al presionarlo invoca al callback de disparo.
             setOnAction { onFire() }
+        }
+
+        // --- Botón de posición aleatoria del objetivo ---
+        randomizeTargetButton = Button("🎯 OBJETIVO ALEATORIO").apply {
+            font = Font.font("System", FontWeight.SEMI_BOLD, 12.0)
+            prefWidth = 260.0
+            prefHeight = 34.0
+            style = """
+                -fx-background-color: #1e3a8a;
+                -fx-text-fill: #93c5fd;
+                -fx-background-radius: 8;
+                -fx-border-color: #3b82f6;
+                -fx-border-width: 1;
+                -fx-border-radius: 8;
+                -fx-cursor: hand;
+            """.trimIndent()
+            setOnAction { onRandomizeTarget() }
         }
 
         // --- Botón de reinicio manual ---
