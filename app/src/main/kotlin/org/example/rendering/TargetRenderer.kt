@@ -30,6 +30,7 @@ class TargetRenderer(
     private val state: SimulationState,
     private val onTargetPositionChanged: (Double) -> Unit,
     private val onRepaint: () -> Unit,
+    val randomizer: ITargetRandomizer = UniformTargetRandomizer(),
 ) {
     // Radio del objetivo en píxeles de canvas
     val targetRadius: Double = 20.0
@@ -130,14 +131,63 @@ class TargetRenderer(
     }
 
     /**
+     * Determina si el objetivo puede ser desplazado o manipulado.
+     * REQUISITO: Cuando sale disparada la pelota ([SimulationState.isAnimating] == true),
+     * no se puede mover el objetivo bajo ninguna circunstancia.
+     */
+    fun canMoveTarget(): Boolean = !state.isAnimating
+
+    /**
+     * Cancela cualquier arrastre activo en curso (por ejemplo al disparar).
+     */
+    fun cancelDrag() {
+        if (isDragging) {
+            isDragging = false
+            canvas.cursor = Cursor.DEFAULT
+        }
+    }
+
+    /**
+     * Calcula los límites horizontales permitidos para la posición X del objetivo sobre el suelo.
+     */
+    fun getValidXRange(): ClosedFloatingPointRange<Double> {
+        val minX = cfg.cannonBaseX + 45.0
+        val maxX = cfg.canvasWidth - targetRadius - 10.0
+        return minX..maxX
+    }
+
+    /**
+     * Coloca el objetivo en una posición X aleatoria válida dentro de los límites del escenario.
+     *
+     * REQUISITO: Si la pelota está en vuelo ([canMoveTarget] == false), la acción es bloqueada.
+     *
+     * @param targetRandomizer Estrategia de generación de posición aleatoria inyectada (DIP).
+     * @return true si el objetivo fue reubicado exitosamente; false si estaba bloqueado por vuelo.
+     */
+    fun randomizePosition(targetRandomizer: ITargetRandomizer = this.randomizer): Boolean {
+        if (!canMoveTarget()) return false
+
+        val range = getValidXRange()
+        val newX = targetRandomizer.calculateRandomX(range.start, range.endInclusive)
+        state.targetX = newX
+        onTargetPositionChanged(newX)
+        onRepaint()
+        return true
+    }
+
+    /**
      * Instala los controladores de eventos de mouse en el canvas para permitir
      * arrastrar el objetivo ÚNICAMENTE a lo largo del eje X.
      * Cede la interacción al proyectil cuando el cursor está sobre la pelota (por estar al frente).
+     * Bloquea el movimiento cuando la pelota está disparada / en vuelo.
      */
     fun installDrag() {
         // Al presionar el mouse: hit-test
         canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_PRESSED) { event ->
             if (event.isConsumed) return@addEventHandler
+
+            // REQUISITO: Cuando sale disparada la pelota no se puede mover el objetivo
+            if (!canMoveTarget()) return@addEventHandler
 
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
 
@@ -164,13 +214,18 @@ class TargetRenderer(
         canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_DRAGGED) { event ->
             if (event.isConsumed || !isDragging) return@addEventHandler
 
+            // REQUISITO: Si la pelota está en vuelo, se cancela el arrastre y no se permite mover
+            if (!canMoveTarget()) {
+                cancelDrag()
+                return@addEventHandler
+            }
+
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
             val requestedX = local.x - dragOffsetX
 
             // Límites en X: margen derecho del cañón y margen derecho del canvas
-            val minX = cfg.cannonBaseX + 45.0
-            val maxX = cfg.canvasWidth - targetRadius - 10.0
-            val clampedX = requestedX.coerceIn(minX, maxX)
+            val range = getValidXRange()
+            val clampedX = requestedX.coerceIn(range.start, range.endInclusive)
 
             state.targetX = clampedX
             onTargetPositionChanged(clampedX)
@@ -182,7 +237,7 @@ class TargetRenderer(
         canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_RELEASED) { event ->
             if (isDragging) {
                 isDragging = false
-                canvas.cursor = Cursor.HAND
+                canvas.cursor = if (canMoveTarget()) Cursor.HAND else Cursor.DEFAULT
                 onRepaint()
                 event.consume()
             }
@@ -191,6 +246,10 @@ class TargetRenderer(
         // Cursor de mano al pasar por encima del objetivo
         canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_MOVED) { event ->
             if (event.isConsumed || isDragging) return@addEventHandler
+
+            // REQUISITO: Cuando la pelota está disparada, no mostrar cursor de interacción sobre la diana
+            if (!canMoveTarget()) return@addEventHandler
+
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
 
             // Si el cursor está sobre el proyectil (que está adelante), no cambiar cursor a target

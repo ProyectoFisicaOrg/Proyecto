@@ -169,7 +169,8 @@ class CannonSimulation : Application() {
                         "velocidad=${state.velocity.toInt()} m/s, " +
                         "gravedad=${"%.1f".format(state.gravity)} m/s², " +
                         "masa=${state.mass.toInt()} kg")
-                // Deshabilita scrubbing anterior y limpia la estela anterior
+                // Cancela cualquier arrastre pendiente del objetivo, deshabilita scrubbing y limpia la estela anterior
+                targetRenderer.cancelDrag()
                 scrubbingController.disable()
                 pathRenderer.clear()
                 pathRenderer.recordLaunch()
@@ -186,6 +187,10 @@ class CannonSimulation : Application() {
                 pathRenderer.clear()
                 controls.clearCollisionResult()
                 sceneRenderer.render()
+            },
+            onRandomizeTarget = {
+                // Reubica el objetivo en una posición aleatoria si no está disparando
+                targetRenderer.randomizePosition()
             }
         )
         // Construye el panel de controles (VBox) listo para el layout.
