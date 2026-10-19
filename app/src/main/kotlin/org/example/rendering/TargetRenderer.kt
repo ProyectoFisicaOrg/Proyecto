@@ -37,6 +37,9 @@ class TargetRenderer(
     // Radio de detección para seleccionar el objetivo con el mouse
     private val hitRadius: Double = 26.0
 
+    // Radio de detección del proyectil (que está por delante)
+    val projectileHitRadius: Double = 22.0
+
     // Estado interno del gesto de arrastre
     private var isDragging: Boolean = false
     private var dragOffsetX: Double = 0.0
@@ -129,11 +132,21 @@ class TargetRenderer(
     /**
      * Instala los controladores de eventos de mouse en el canvas para permitir
      * arrastrar el objetivo ÚNICAMENTE a lo largo del eje X.
+     * Cede la interacción al proyectil cuando el cursor está sobre la pelota (por estar al frente).
      */
     fun installDrag() {
         // Al presionar el mouse: hit-test
-        canvas.setOnMousePressed { event ->
+        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_PRESSED) { event ->
+            if (event.isConsumed) return@addEventHandler
+
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
+
+            // Si el proyectil está por delante y el clic fue sobre él, ceder la selección al proyectil
+            val distToProjectile = Math.hypot(local.x - state.projectileX, local.y - state.projectileY)
+            if (distToProjectile <= projectileHitRadius) {
+                return@addEventHandler
+            }
+
             val dx = local.x - state.targetX
             val dy = local.y - cfg.groundY
             val dist = Math.sqrt(dx * dx + dy * dy)
@@ -143,12 +156,13 @@ class TargetRenderer(
                 dragOffsetX = dx
                 canvas.cursor = Cursor.CLOSED_HAND
                 onRepaint()
+                event.consume()
             }
         }
 
         // Al arrastrar: actualización de X únicamente
-        canvas.setOnMouseDragged { event ->
-            if (!isDragging) return@setOnMouseDragged
+        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_DRAGGED) { event ->
+            if (event.isConsumed || !isDragging) return@addEventHandler
 
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
             val requestedX = local.x - dragOffsetX
@@ -161,26 +175,37 @@ class TargetRenderer(
             state.targetX = clampedX
             onTargetPositionChanged(clampedX)
             onRepaint()
+            event.consume()
         }
 
         // Al soltar el mouse
-        canvas.setOnMouseReleased {
+        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_RELEASED) { event ->
             if (isDragging) {
                 isDragging = false
                 canvas.cursor = Cursor.HAND
                 onRepaint()
+                event.consume()
             }
         }
 
         // Cursor de mano al pasar por encima del objetivo
-        canvas.setOnMouseMoved { event ->
-            if (isDragging) return@setOnMouseMoved
+        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_MOVED) { event ->
+            if (event.isConsumed || isDragging) return@addEventHandler
             val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
+
+            // Si el cursor está sobre el proyectil (que está adelante), no cambiar cursor a target
+            val distToProjectile = Math.hypot(local.x - state.projectileX, local.y - state.projectileY)
+            if (distToProjectile <= projectileHitRadius) {
+                return@addEventHandler
+            }
+
             val dx = local.x - state.targetX
             val dy = local.y - cfg.groundY
             val dist = Math.sqrt(dx * dx + dy * dy)
 
-            canvas.cursor = if (dist <= hitRadius) Cursor.HAND else Cursor.DEFAULT
+            if (dist <= hitRadius) {
+                canvas.cursor = Cursor.HAND
+            }
         }
     }
 }

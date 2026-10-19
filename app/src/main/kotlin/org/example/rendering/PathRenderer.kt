@@ -47,6 +47,19 @@ class PathRenderer(
     // Marca temporal del momento del disparo
     private var launchTimestampNano: Long = 0L
 
+    /** Indica si el desvanecimiento está congelado (por ejemplo, para permitir scrubbing tras el impacto). */
+    var isFrozen: Boolean = false
+
+    /** Congela el desvanecimiento para mantener la trayectoria completamente visible tras el impacto */
+    fun freeze() {
+        isFrozen = true
+    }
+
+    /** Descongela el desvanecimiento */
+    fun unfreeze() {
+        isFrozen = false
+    }
+
     /**
      * Registra el instante exacto del disparo para iniciar el conteo del desvanecimiento temporal.
      *
@@ -54,6 +67,7 @@ class PathRenderer(
      */
     fun recordLaunch(nowNano: Long = System.nanoTime()) {
         launchTimestampNano = nowNano
+        isFrozen = false
     }
 
     /**
@@ -75,6 +89,7 @@ class PathRenderer(
     fun clear() {
         points.clear()
         launchTimestampNano = 0L
+        isFrozen = false
     }
 
     /** Cantidad de puntos actualmente activos en la trayectoria. */
@@ -95,11 +110,13 @@ class PathRenderer(
 
     /**
      * Calcula el progreso del desvanecimiento en el rango [0.0, 1.0]:
+     *  - Si está congelado ([isFrozen]), progreso 0.0 (opacidad máxima).
      *  - t <= fadeDelaySeconds (2.0s): progreso 0.0 (opacidad máxima sin desvanecimiento).
      *  - fadeDelaySeconds < t < fadeDelaySeconds + fadeDurationSeconds: progreso proporcional de 0.0 a 1.0.
      *  - t >= fadeDelaySeconds + fadeDurationSeconds: progreso 1.0 (disuelto por completo).
      */
     fun getFadeProgress(nowNano: Long = System.nanoTime()): Double {
+        if (isFrozen) return 0.0
         val launch = effectiveLaunchNano()
         if (launch == 0L) return 0.0
         val age = (nowNano - launch) / 1_000_000_000.0

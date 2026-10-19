@@ -40,6 +40,7 @@ class AnimationEngine(
     private val onTick: (Double, Double) -> Unit = { _, _ -> },
     private val collisionListener: CollisionListener? = null,
     private val onOutOfBounds: (() -> Unit)? = null,
+    private val onFlightCompleted: ((TrajectoryMatrix) -> Unit)? = null,
     var timeScale: Double = 1.75,
     private val frameTicker: FrameTicker = JavaFxFrameTicker(),
     val samplesPerSecond: Int = 240,
@@ -189,7 +190,10 @@ class AnimationEngine(
         // 5. Notificar la colisión al listener desacoplado
         collisionListener?.onCollision(result)
 
-        // 6. Finalizar la animación y refrescar el fotograma final
+        // 6. Notificar finalización de vuelo para habilitar la interacción de scrubbing (Issue 3.2)
+        onFlightCompleted?.invoke(matrix)
+
+        // 7. Finalizar la animación y refrescar el fotograma final
         stop()
         onUpdate()
     }
