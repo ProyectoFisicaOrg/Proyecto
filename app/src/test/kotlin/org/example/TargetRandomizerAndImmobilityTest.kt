@@ -1,185 +1,138 @@
 package org.example
 
-import org.example.model.SimulationState
-import org.example.rendering.ITargetRandomizer
-import org.example.rendering.SceneConfig
-import org.example.rendering.TargetRenderer
-import org.example.rendering.UniformTargetRandomizer
 import java.util.Random
+import javafx.scene.canvas.Canvas
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.example.model.SimulationState
+import org.example.rendering.DefaultCoordinateTransformer
+import org.example.rendering.ITargetRandomizer
+import org.example.rendering.SceneConfig
+import org.example.rendering.TargetDistanceHud
+import org.example.rendering.TargetRenderer
+import org.example.rendering.UniformTargetRandomizer
 
 /**
- * Pruebas unitarias para la funcionalidad de objetivo aleatorio e inmovilidad durante el vuelo.
- *
- * Valida los requerimientos:
- *  1. Cálculo de posición aleatoria del objetivo dentro de los límites válidos del suelo (ITargetRandomizer + UniformTargetRandomizer).
- *  2. Inmovilidad del objetivo: cuando la pelota sale disparada (state.isAnimating == true),
- *     el objetivo NO se puede mover (ni por arrastre ni por aleatorización).
- *  3. Inversión de dependencias (DIP) y extensibilidad (OCP) permitiendo inyectar generadores deterministas.
+ * Estrategia determinista de prueba para validar DIP/OCP en el reposicionamiento del objetivo.
+ */
+private class MidpointTargetRandomizer : ITargetRandomizer {
+    override fun calculateRandomX(minX: Double, maxX: Double): Double = (minX + maxX) / 2.0
+}
+
+/**
+ * Pruebas unitarias de objetivo aleatorio e inmovilidad durante el vuelo (SRP).
  */
 class TargetRandomizerAndImmobilityTest {
 
     private val cfg = SceneConfig(canvasWidth = 900.0, canvasHeight = 550.0)
 
-    // ─── 1. Pruebas de ITargetRandomizer (SRP + DIP) ───────────────────────────
+    private fun buildRenderer(state: SimulationState, onMoved: (Double) -> Unit = {}, onRepaint: () -> Unit = {}): TargetRenderer {
+        val dummyCanvas = Canvas(cfg.canvasWidth, cfg.canvasHeight)
+        return TargetRenderer(dummyCanvas.graphicsContext2D, cfg, dummyCanvas, state, onMoved, onRepaint)
+    }
 
     @Test
-    fun `uniform target randomizer produces values strictly within bounds`() {
+    fun test_uniform_target_randomizer_produces_values_strictly_within_bounds() {
         val randomizer = UniformTargetRandomizer(Random(42))
-        val minX = 100.0
-        val maxX = 800.0
-
         for (i in 0..100) {
-            val randomX = randomizer.calculateRandomX(minX, maxX)
-            assertTrue(randomX >= minX, "randomX ($randomX) no puede ser menor que minX ($minX)")
-            assertTrue(randomX <= maxX, "randomX ($randomX) no puede ser mayor que maxX ($maxX)")
+            val randomX = randomizer.calculateRandomX(100.0, 800.0)
+            assertTrue(randomX in 100.0..800.0)
         }
     }
 
     @Test
-    fun `uniform target randomizer with seeded random is deterministic`() {
-        val random1 = Random(12345)
-        val random2 = Random(12345)
-        val randomizer1 = UniformTargetRandomizer(random1)
-        val randomizer2 = UniformTargetRandomizer(random2)
-
-        val val1 = randomizer1.calculateRandomX(50.0, 500.0)
-        val val2 = randomizer2.calculateRandomX(50.0, 500.0)
-
-        assertEquals(val1, val2, 1e-9, "Con la misma semilla, el resultado debe ser exactamente reproducible")
-    }
-
-    // ─── 2. Pruebas de Límites e Inmovilidad del Objetivo en TargetRenderer ────
-
-    @Test
-    fun `target renderer valid X range respects cannon margin and right edge margin`() {
-        val state = SimulationState()
-        val dummyCanvas = javafx.scene.canvas.Canvas(cfg.canvasWidth, cfg.canvasHeight)
-        val targetRenderer = TargetRenderer(
-            gc = dummyCanvas.graphicsContext2D,
-            cfg = cfg,
-            canvas = dummyCanvas,
-            state = state,
-            onTargetPositionChanged = {},
-            onRepaint = {}
-        )
-
-        val range = targetRenderer.getValidXRange()
-        val expectedMin = cfg.cannonBaseX + 45.0
-        val expectedMax = cfg.canvasWidth - targetRenderer.targetRadius - 10.0
-
-        assertEquals(expectedMin, range.start, 1e-4)
-        assertEquals(expectedMax, range.endInclusive, 1e-4)
-        assertTrue(range.start < range.endInclusive, "El rango debe ser válido y positivo")
+    fun test_uniform_target_randomizer_with_seeded_random_is_deterministic() {
+        val val1 = UniformTargetRandomizer(Random(12345)).calculateRandomX(50.0, 500.0)
+        val val2 = UniformTargetRandomizer(Random(12345)).calculateRandomX(50.0, 500.0)
+        assertEquals(val1, val2, 1e-9)
     }
 
     @Test
-    fun `randomizePosition updates targetX within valid range when not animating`() {
+    fun test_target_renderer_valid_X_range_respects_cannon_margin_and_right_edge_margin() {
+        val renderer = buildRenderer(SimulationState())
+        val range = renderer.getValidXRange()
+        assertEquals(cfg.cannonBaseX + 45.0, range.start, 1e-4)
+        assertEquals(cfg.canvasWidth - renderer.targetRadius - 10.0, range.endInclusive, 1e-4)
+        assertTrue(range.start < range.endInclusive)
+    }
+
+    @Test
+    fun test_randomizePosition_updates_targetX_within_valid_range_when_not_animating() {
         val state = SimulationState().apply {
             isAnimating = false
             targetX = 200.0
         }
-        val dummyCanvas = javafx.scene.canvas.Canvas(cfg.canvasWidth, cfg.canvasHeight)
         var notifiedPosition: Double? = null
         var repainted = false
-
-        val targetRenderer = TargetRenderer(
-            gc = dummyCanvas.graphicsContext2D,
-            cfg = cfg,
-            canvas = dummyCanvas,
-            state = state,
-            onTargetPositionChanged = { notifiedPosition = it },
-            onRepaint = { repainted = true }
-        )
-
-        val success = targetRenderer.randomizePosition()
-
-        assertTrue(success, "Debe retornar true al reubicar con éxito cuando no hay animación activa")
-        val range = targetRenderer.getValidXRange()
-        assertTrue(state.targetX in range.start..range.endInclusive, "La nueva posición debe estar en el rango válido")
-        assertEquals(state.targetX, notifiedPosition, "Debe notificar la nueva coordenada X")
-        assertTrue(repainted, "Debe solicitar el redibujado de la escena")
+        val renderer = buildRenderer(state, onMoved = { notifiedPosition = it }, onRepaint = { repainted = true })
+        assertTrue(renderer.randomizePosition())
+        val range = renderer.getValidXRange()
+        assertTrue(state.targetX in range.start..range.endInclusive)
+        assertEquals(state.targetX, notifiedPosition)
+        assertTrue(repainted)
     }
 
     @Test
-    fun `randomizePosition is strictly rejected when projectile is in flight`() {
-        val initialX = 500.0
+    fun test_randomizePosition_is_strictly_rejected_when_projectile_is_in_flight() {
         val state = SimulationState().apply {
-            isAnimating = true // Pelota disparada en vuelo
-            targetX = initialX
+            isAnimating = true
+            targetX = 500.0
         }
-        val dummyCanvas = javafx.scene.canvas.Canvas(cfg.canvasWidth, cfg.canvasHeight)
         var wasNotified = false
-
-        val targetRenderer = TargetRenderer(
-            gc = dummyCanvas.graphicsContext2D,
-            cfg = cfg,
-            canvas = dummyCanvas,
-            state = state,
-            onTargetPositionChanged = { wasNotified = true },
-            onRepaint = {}
-        )
-
-        // Intentar aleatorizar la posición mientras la pelota está en vuelo
-        val success = targetRenderer.randomizePosition()
-
-        assertFalse(success, "Debe retornar false y rechazar la acción cuando la pelota está en vuelo")
-        assertEquals(initialX, state.targetX, "La posición del objetivo NO debe cambiar mientras la pelota está en vuelo")
-        assertFalse(wasNotified, "No debe emitir notificación de cambio")
-        assertFalse(targetRenderer.canMoveTarget(), "canMoveTarget debe ser false durante el vuelo")
+        val renderer = buildRenderer(state, onMoved = { wasNotified = true })
+        assertFalse(renderer.randomizePosition())
+        assertEquals(500.0, state.targetX)
+        assertFalse(wasNotified)
+        assertFalse(renderer.canMoveTarget())
     }
 
     @Test
-    fun `custom target randomizer can be injected conforming to OCP and DIP`() {
+    fun test_custom_target_randomizer_can_be_injected_conforming_to_OCP_and_DIP() {
         val state = SimulationState().apply {
             isAnimating = false
             targetX = 100.0
         }
-        val dummyCanvas = javafx.scene.canvas.Canvas(cfg.canvasWidth, cfg.canvasHeight)
-
-        val targetRenderer = TargetRenderer(
-            gc = dummyCanvas.graphicsContext2D,
-            cfg = cfg,
-            canvas = dummyCanvas,
-            state = state,
-            onTargetPositionChanged = {},
-            onRepaint = {}
-        )
-
-        // Mock / Estrategia determinista inyectada que siempre devuelve el punto medio
-        val midpointRandomizer = object : ITargetRandomizer {
-            override fun calculateRandomX(minX: Double, maxX: Double): Double = (minX + maxX) / 2.0
-        }
-
-        val success = targetRenderer.randomizePosition(midpointRandomizer)
-        assertTrue(success)
-
-        val expectedMidpoint = (targetRenderer.getValidXRange().start + targetRenderer.getValidXRange().endInclusive) / 2.0
-        assertEquals(expectedMidpoint, state.targetX, 1e-4)
+        val renderer = buildRenderer(state)
+        assertTrue(renderer.randomizePosition(MidpointTargetRandomizer()))
+        val range = renderer.getValidXRange()
+        assertEquals((range.start + range.endInclusive) / 2.0, state.targetX, 1e-4)
     }
 
     @Test
-    fun `canMoveTarget becomes true once flight finishes or projectile is at rest`() {
-        val state = SimulationState().apply {
-            isAnimating = true
-        }
-        val dummyCanvas = javafx.scene.canvas.Canvas(cfg.canvasWidth, cfg.canvasHeight)
-        val targetRenderer = TargetRenderer(
-            gc = dummyCanvas.graphicsContext2D,
-            cfg = cfg,
-            canvas = dummyCanvas,
-            state = state,
-            onTargetPositionChanged = {},
-            onRepaint = {}
-        )
-
-        assertFalse(targetRenderer.canMoveTarget(), "Durante el vuelo debe ser inamovible")
-
-        // Finaliza el vuelo
+    fun test_canMoveTarget_becomes_true_once_flight_finishes_or_projectile_is_at_rest() {
+        val state = SimulationState().apply { isAnimating = true }
+        val renderer = buildRenderer(state)
+        assertFalse(renderer.canMoveTarget())
         state.isAnimating = false
-        assertTrue(targetRenderer.canMoveTarget(), "Al terminar el vuelo vuelve a ser movible")
+        assertTrue(renderer.canMoveTarget())
+    }
+}
+
+/**
+ * Pruebas unitarias del HUD dinámico de distancia al objetivo al arrastrar y aleatorizar (SRP).
+ */
+class TargetDistanceHudTest {
+
+    private val cfg = SceneConfig(canvasWidth = 900.0, canvasHeight = 550.0)
+    private val transformer = DefaultCoordinateTransformer(cfg, pixelsPerMeter = 2.5)
+
+    @Test
+    fun test_target_distance_hud_calculates_and_formats_dynamic_distance_on_move_and_randomize() {
+        val state = SimulationState().apply { targetX = 750.0 }
+        val hud = TargetDistanceHud(cfg, transformer)
+        assertEquals(264.0, hud.distanceMeters(state.targetX), 1e-4)
+        assertEquals("264.00 m", hud.formatDistance(state.targetX))
+
+        state.targetX = 340.0
+        assertEquals(100.0, hud.distanceMeters(state.targetX), 1e-4)
+        assertEquals("100.00 m", hud.formatDistance(state.targetX))
+
+        val dummyCanvas = Canvas(cfg.canvasWidth, cfg.canvasHeight)
+        val renderer = TargetRenderer(dummyCanvas.graphicsContext2D, cfg, dummyCanvas, state, {}, {})
+        assertTrue(renderer.randomizePosition(MidpointTargetRandomizer()))
+        val expectedMeters = transformer.toPhysicsX(state.targetX)
+        assertEquals(expectedMeters, hud.distanceMeters(state.targetX), 1e-4)
     }
 }

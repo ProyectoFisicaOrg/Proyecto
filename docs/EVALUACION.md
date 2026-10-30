@@ -28,7 +28,7 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Semáforo | Resultado |
 |---|---|
 | Aprobar (`estandar`) | **no cumple** — 2/4 |
-| Destacar (`exigente`) | **no cumple** — 1/5 |
+| Destacar (`exigente`) | **no cumple** — 2/5 |
 
 **Criterios para aprobar**
 

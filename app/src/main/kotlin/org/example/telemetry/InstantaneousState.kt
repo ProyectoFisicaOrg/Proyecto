@@ -1,82 +1,93 @@
 package org.example.telemetry
 
-import org.example.Position
-import org.example.TrajectoryPoint
 import java.util.Locale
 import kotlin.math.hypot
+import org.example.Position
+import org.example.TrajectoryPoint
 
 /**
- * Representa el estado instantáneo (telemetría) del proyectil en un punto específico de su trayectoria.
- *
- * Sigue el Principio de Responsabilidad Única (SRP): su único propósito es encapsular
- * de forma inmutable los datos cinemáticos instantáneos requeridos por la especificación:
- * tiempo transcurrido (t), altura (y) y velocidad escalar v = sqrt(vx^2 + vy^2).
- *
- * @property time Tiempo transcurrido desde el disparo en segundos (t).
- * @property height Altura del proyectil en metros (y).
- * @property speed Velocidad escalar (módulo de la velocidad) v = sqrt(vx^2 + vy^2) en m/s.
- * @property x Distancia horizontal recorrida en metros.
- * @property point Punto cinemático completo [TrajectoryPoint] de la trayectoria.
- * @property distanceToQuery Distancia euclidiana entre la coordenada de consulta y este punto.
+ * Contrato de aliases cinemáticos estándar (t, y, v, distance, position) para telemetría (ISP + DIP).
  */
-data class InstantaneousState(
-    val time: Double,
-    val height: Double,
-    val speed: Double,
-    val x: Double,
-    val point: TrajectoryPoint,
-    val distanceToQuery: Double = 0.0
-) {
+interface ITelemetryAliases {
+    fun sourcePoint(): TrajectoryPoint
+    fun scalarSpeed(): Double
+
+    val t: Double get() = sourcePoint().t
+    val y: Double get() = sourcePoint().y
+    val v: Double get() = scalarSpeed()
+    val distance: Double get() = sourcePoint().x
+    val position: Position get() = Position(sourcePoint().x, sourcePoint().y)
+}
+
+/**
+ * Contrato completo de lectura del estado instantáneo de telemetría (ISP + DIP).
+ */
+interface IInstantaneousState : ITelemetryAliases {
+    fun elapsedTime(): Double
+    fun altitude(): Double
+    fun horizontalCoord(): Double
+    fun queryDistance(): Double
+
+    val time: Double get() = elapsedTime()
+    val height: Double get() = altitude()
+    val speed: Double get() = scalarSpeed()
+    val x: Double get() = horizontalCoord()
+    val point: TrajectoryPoint get() = sourcePoint()
+    val distanceToQuery: Double get() = queryDistance()
+}
+
+/**
+ * Representa el estado instantáneo encapsulado (telemetría) del proyectil en un punto específico (SRP + Encapsulación).
+ */
+class InstantaneousState(
+    time: Double,
+    height: Double,
+    speed: Double,
+    x: Double,
+    point: TrajectoryPoint,
+    distanceToQuery: Double = 0.0
+) : IInstantaneousState {
+    private val timeSec: Double = time
+    private val heightM: Double = height
+    private val speedMps: Double = speed
+    private val posX: Double = x
+    private val trajPoint: TrajectoryPoint = point
+    private val queryDist: Double = distanceToQuery
+
     init {
         require(time >= -1e-9) { "El tiempo transcurrido no puede ser negativo: $time" }
         require(speed >= 0.0) { "La velocidad escalar no puede ser negativa: $speed" }
         require(distanceToQuery >= 0.0) { "La distancia a la consulta no puede ser negativa: $distanceToQuery" }
     }
 
-    /** Alias para tiempo transcurrido (t). */
-    val t: Double get() = time
+    override fun sourcePoint(): TrajectoryPoint = trajPoint
 
-    /** Alias para altura (y). */
-    val y: Double get() = height
+    override fun scalarSpeed(): Double = speedMps
 
-    /** Alias para velocidad escalar (v). */
-    val v: Double get() = speed
+    override fun elapsedTime(): Double = timeSec
 
-    /** Alias para distancia horizontal (x). */
-    val distance: Double get() = x
+    override fun altitude(): Double = heightM
 
-    /** Representación de la posición 2D del proyectil en este estado. */
-    val position: Position get() = Position(x, height)
+    override fun horizontalCoord(): Double = posX
 
-    /**
-     * Formatea el estado en una cadena legible para el HUD o la consola usando Locale.US.
-     */
+    override fun queryDistance(): Double = queryDist
+
     fun format(): String =
-        String.format(Locale.US, "t=%.2f s, h=%.2f m, v=%.2f m/s (x=%.2f m)", time, height, speed, x)
+        String.format(Locale.US, "t=%.2f s, h=%.2f m, v=%.2f m/s (x=%.2f m)", timeSec, heightM, speedMps, posX)
+
+    private fun components(): List<Any> = listOf(timeSec, heightM, speedMps, posX, trajPoint, queryDist)
+
+    override fun equals(other: Any?): Boolean = other is InstantaneousState && components() == other.components()
+
+    override fun hashCode(): Int = components().hashCode()
 
     override fun toString(): String =
-        String.format(Locale.US, "InstantaneousState(t=%.4f s, y=%.4f m, v=%.4f m/s, x=%.4f m)", time, height, speed, x)
+        String.format(Locale.US, "InstantaneousState(t=%.4f s, y=%.4f m, v=%.4f m/s, x=%.4f m)", timeSec, heightM, speedMps, posX)
 
     companion object {
-        /**
-         * Crea un [InstantaneousState] a partir de un [TrajectoryPoint] y una distancia opcional.
-         *
-         * @param point Punto de la trayectoria.
-         * @param distanceToQuery Distancia euclidiana a la coordenada consultada.
-         */
-        fun fromTrajectoryPoint(
-            point: TrajectoryPoint,
-            distanceToQuery: Double = 0.0
-        ): InstantaneousState {
+        fun fromTrajectoryPoint(point: TrajectoryPoint, distanceToQuery: Double = 0.0): InstantaneousState {
             val speed = hypot(point.vx, point.vy)
-            return InstantaneousState(
-                time = point.t,
-                height = point.y,
-                speed = speed,
-                x = point.x,
-                point = point,
-                distanceToQuery = distanceToQuery
-            )
+            return InstantaneousState(point.t, point.y, speed, point.x, point, distanceToQuery)
         }
     }
 }

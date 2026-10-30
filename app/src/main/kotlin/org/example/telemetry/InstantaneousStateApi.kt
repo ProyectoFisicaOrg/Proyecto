@@ -122,7 +122,8 @@ interface InstantaneousStateApi {
  * Principio de Inversión de Dependencias (DIP): depende de la abstracción [TrajectoryNearestNeighborSearcher].
  */
 class DefaultInstantaneousStateApi(
-    private val searcher: TrajectoryNearestNeighborSearcher = EuclideanNearestNeighborSearcher()
+    private val searcher: TrajectoryNearestNeighborSearcher = EuclideanNearestNeighborSearcher(),
+    private val inspectorFactory: (TrajectoryMatrix, InstantaneousStateApi) -> TrajectoryInspector = ::BoundTrajectoryInspector
 ) : InstantaneousStateApi {
 
     override fun getInstantaneousState(matrix: TrajectoryMatrix, x: Double, y: Double): InstantaneousState =
@@ -146,7 +147,7 @@ class DefaultInstantaneousStateApi(
     }
 
     override fun createInspector(matrix: TrajectoryMatrix): TrajectoryInspector =
-        BoundTrajectoryInspector(matrix, this)
+        inspectorFactory(matrix, this)
 }
 
 /**

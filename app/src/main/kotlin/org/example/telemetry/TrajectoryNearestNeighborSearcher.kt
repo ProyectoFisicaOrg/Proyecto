@@ -82,25 +82,7 @@ class EuclideanNearestNeighborSearcher : TrajectoryNearestNeighborSearcher {
     override fun findNearestIndex(points: List<TrajectoryPoint>, x: Double, y: Double): Int {
         require(points.isNotEmpty()) { "La lista de puntos no puede estar vacía" }
         if (points.size == 1) return 0
-
-        var bestIndex = 0
-        var minDistanceSq = Double.MAX_VALUE
-
-        for (i in points.indices) {
-            val p = points[i]
-            val dx = p.x - x
-            val dy = p.y - y
-            val distSq = dx * dx + dy * dy
-
-            if (distSq < minDistanceSq) {
-                minDistanceSq = distSq
-                bestIndex = i
-                // Coincidencia exacta (umbral de precisión flotante)
-                if (distSq < 1e-14) break
-            }
-        }
-
-        return bestIndex
+        return findLinearNearest2D(points, x, y)
     }
 
     override fun findNearestByX(points: List<TrajectoryPoint>, targetX: Double): TrajectoryPoint {
@@ -111,32 +93,50 @@ class EuclideanNearestNeighborSearcher : TrajectoryNearestNeighborSearcher {
     override fun findNearestIndexByX(points: List<TrajectoryPoint>, targetX: Double): Int {
         require(points.isNotEmpty()) { "La lista de puntos no puede estar vacía" }
         if (points.size == 1) return 0
-
-        // Clamping si el valor solicitado está fuera del rango del recorrido
         if (targetX <= points.first().x) return 0
         if (targetX >= points.last().x) return points.size - 1
+        return binarySearchClosestX(points, targetX)
+    }
 
-        // Búsqueda binaria O(log n)
+    private fun findLinearNearest2D(points: List<TrajectoryPoint>, x: Double, y: Double): Int {
+        var bestIndex = 0
+        var minDistanceSq = Double.MAX_VALUE
+
+        for (i in points.indices) {
+            val distSq = distanceSquared(points[i], x, y)
+            if (distSq < minDistanceSq) {
+                minDistanceSq = distSq
+                bestIndex = i
+                if (distSq < 1e-14) break
+            }
+        }
+        return bestIndex
+    }
+
+    private fun binarySearchClosestX(points: List<TrajectoryPoint>, targetX: Double): Int {
         var low = 0
         var high = points.size - 1
 
         while (low <= high) {
             val mid = (low + high) ushr 1
             val midVal = points[mid].x
-
             when {
                 midVal < targetX -> low = mid + 1
                 midVal > targetX -> high = mid - 1
-                else -> return mid // Coincidencia exacta
+                else -> return mid
             }
         }
 
         val candidate1 = high.coerceIn(0, points.size - 1)
         val candidate2 = low.coerceIn(0, points.size - 1)
-
         val diff1 = abs(points[candidate1].x - targetX)
         val diff2 = abs(points[candidate2].x - targetX)
-
         return if (diff1 <= diff2) candidate1 else candidate2
+    }
+
+    private fun distanceSquared(p: TrajectoryPoint, x: Double, y: Double): Double {
+        val dx = p.x - x
+        val dy = p.y - y
+        return dx * dx + dy * dy
     }
 }
