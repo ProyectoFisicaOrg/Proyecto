@@ -1,73 +1,82 @@
 package org.example.model
 
+import org.example.Position
 import org.example.TrajectoryPoint
+import org.example.telemetry.InstantaneousState
+import org.example.telemetry.InstantaneousStateApi
+import org.example.telemetry.TelemetryFactory
 
 /**
- * Matriz de trayectoria: contenedor inmutable de los puntos del recorrido del proyectil.
- *
- * Responsabilidad Única (SRP): solo almacena y expone los datos de la trayectoria.
- * No genera puntos (eso lo hace el generador), no busca ni detecta colisiones
- * (eso lo hacen el buscador y el detector).
- *
- * @param points Puntos ordenados cronológicamente (x creciente)
- * @param timeOfFlight Tiempo de vuelo total en segundos
- * @param range Alcance horizontal total en metros
- * @param maxHeight Altura máxima alcanzada en metros
+ * Contrato de métricas resumidas y puntos discretizados de una trayectoria (ISP + DIP).
+ */
+interface ITrajectoryMatrixSummary {
+    fun trajectoryPoints(): List<TrajectoryPoint>
+    fun totalTimeOfFlight(): Double
+    fun horizontalRange(): Double
+    fun peakHeight(): Double
+
+    val points: List<TrajectoryPoint> get() = trajectoryPoints()
+    val timeOfFlight: Double get() = totalTimeOfFlight()
+    val range: Double get() = horizontalRange()
+    val maxHeight: Double get() = peakHeight()
+    val size: Int get() = trajectoryPoints().size
+    val launchPoint: TrajectoryPoint get() = trajectoryPoints().first()
+    val impactPoint: TrajectoryPoint get() = trajectoryPoints().last()
+}
+
+/**
+ * Matriz de trayectoria: contenedor inmutable y encapsulado de los puntos del recorrido del proyectil (SRP + Encapsulación).
  */
 class TrajectoryMatrix(
-    val points: List<TrajectoryPoint>,
-    val timeOfFlight: Double,
-    val range: Double,
-    val maxHeight: Double
-) {
+    points: List<TrajectoryPoint>,
+    timeOfFlight: Double,
+    range: Double,
+    maxHeight: Double
+) : ITrajectoryMatrixSummary {
+    private val sampledPoints: List<TrajectoryPoint> = points
+    private val flightDuration: Double = timeOfFlight
+    private val maxHorizontalRange: Double = range
+    private val peakAltitude: Double = maxHeight
+
     init {
-        require(points.isNotEmpty()) { "La matriz no puede estar vacía" }
-        require(timeOfFlight >= 0) { "El tiempo de vuelo no puede ser negativo" }
-        require(range >= 0) { "El alcance no puede ser negativo" }
-        require(maxHeight >= 0) { "La altura máxima no puede ser negativa" }
+        require(sampledPoints.isNotEmpty()) { "La matriz no puede estar vacía" }
+        require(flightDuration >= 0) { "El tiempo de vuelo no puede ser negativo" }
+        require(maxHorizontalRange >= 0) { "El alcance no puede ser negativo" }
+        require(peakAltitude >= 0) { "La altura máxima no puede ser negativa" }
     }
 
-    /** Cantidad de puntos en la matriz */
-    val size: Int get() = points.size
+    override fun trajectoryPoints(): List<TrajectoryPoint> = sampledPoints
 
-    /** Primer punto (lanzamiento) */
-    val launchPoint: TrajectoryPoint get() = points.first()
+    override fun totalTimeOfFlight(): Double = flightDuration
 
-    /** Último punto (impacto en suelo) */
-    val impactPoint: TrajectoryPoint get() = points.last()
+    override fun horizontalRange(): Double = maxHorizontalRange
 
-    /**
-     * Subconjunto de puntos de la trayectoria (clamps a los límites).
-     *
-     * @param fromIndex Índice inicial (inclusivo)
-     * @param toIndex Índice final (exclusivo)
-     * @return Lista de puntos en el rango
-     */
+    override fun peakHeight(): Double = peakAltitude
+
     fun subMatrix(fromIndex: Int, toIndex: Int): List<TrajectoryPoint> {
-        val safeFrom = fromIndex.coerceIn(0, points.size)
-        val safeTo = toIndex.coerceIn(0, points.size)
-        return points.subList(safeFrom, safeTo)
+        val safeFrom = fromIndex.coerceIn(0, sampledPoints.size)
+        val safeTo = toIndex.coerceIn(0, sampledPoints.size)
+        return sampledPoints.subList(safeFrom, safeTo)
     }
 
-    /**
-     * Puntos que están por encima de una altura mínima.
-     *
-     * @param minHeight Altura mínima en metros
-     * @return Lista de puntos por encima de minHeight
-     */
-    fun pointsAbove(minHeight: Double): List<TrajectoryPoint> {
-        return points.filter { it.y >= minHeight }
-    }
+    fun pointsAbove(minHeight: Double): List<TrajectoryPoint> = sampledPoints.filter { it.y >= minHeight }
 
-    override fun toString(): String {
-        return buildString {
-            appendLine("=== Matriz de Trayectoria ===")
-            appendLine("Puntos: ${points.size}")
-            appendLine("Tiempo de vuelo: %.4f s".format(timeOfFlight))
-            appendLine("Alcance: %.2f m".format(range))
-            appendLine("Altura máxima: %.2f m".format(maxHeight))
-            appendLine("Punto de lanzamiento: (%.2f, %.2f)".format(launchPoint.x, launchPoint.y))
-            appendLine("Punto de impacto: (%.2f, %.2f)".format(impactPoint.x, impactPoint.y))
-        }
+    fun getInstantaneousState(x: Double, y: Double, api: InstantaneousStateApi = TelemetryFactory.createApi()): InstantaneousState =
+        api.getInstantaneousState(this, x, y)
+
+    fun getInstantaneousState(position: Position, api: InstantaneousStateApi = TelemetryFactory.createApi()): InstantaneousState =
+        api.getInstantaneousState(this, position)
+
+    fun getInstantaneousStateByX(x: Double, api: InstantaneousStateApi = TelemetryFactory.createApi()): InstantaneousState =
+        api.getInstantaneousStateByX(this, x)
+
+    override fun toString(): String = buildString {
+        appendLine("=== Matriz de Trayectoria ===")
+        appendLine("Puntos: ${sampledPoints.size}")
+        appendLine("Tiempo de vuelo: %.4f s".format(flightDuration))
+        appendLine("Alcance: %.2f m".format(maxHorizontalRange))
+        appendLine("Altura máxima: %.2f m".format(peakAltitude))
+        appendLine("Punto de lanzamiento: (%.2f, %.2f)".format(launchPoint.x, launchPoint.y))
+        appendLine("Punto de impacto: (%.2f, %.2f)".format(impactPoint.x, impactPoint.y))
     }
 }

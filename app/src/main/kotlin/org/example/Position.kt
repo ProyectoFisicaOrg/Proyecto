@@ -1,11 +1,9 @@
 package org.example
 
+import kotlin.math.hypot
+
 /**
- * Data class inmutable que representa una posición en el espacio 2D.
- *
- * Sirve para transportar el resultado del motor de física (coordenadas
- * del modelo) de forma segura e inmutable. Al ser un `data class` de
- * Kotlin, obtiene automáticamente equals/hashCode/toString.
+ * Objeto de valor inmutable que representa una posición en el espacio 2D.
  *
  * @property x Coordenada horizontal.
  * @property y Coordenada vertical.
@@ -13,4 +11,10 @@ package org.example
 data class Position(
     val x: Double,
     val y: Double,
-)
+) {
+    /** Calcula la distancia euclidiana hacia otra posición 2D. */
+    fun distanceTo(other: Position): Double = hypot(x - other.x, y - other.y)
+
+    /** Retorna una nueva posición trasladada según el desplazamiento indicado. */
+    fun translate(dx: Double, dy: Double): Position = Position(x + dx, y + dy)
+}

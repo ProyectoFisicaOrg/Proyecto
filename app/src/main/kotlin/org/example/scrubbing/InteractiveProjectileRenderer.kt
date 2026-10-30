@@ -4,57 +4,73 @@ import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 
 /**
- * Renderizador de efectos visuales interactivos para el proyectil durante el modo Scrubbing (SRP).
- *
- * Responsabilidad Única:
- *  - Proporcionar retroalimentación visual al usuario (halo de selección, anillo de enfoque,
- *    y efecto de agarre activo) cuando el proyectil se encuentra en modo interactivo sobre la trayectoria.
+ * Estado visual encapsulado de interacción del proyectil sobre el canvas (SRP).
  */
-class InteractiveProjectileRenderer {
+class InteractiveEffectState(
+    private val x: Double,
+    private val y: Double,
+    private val isDragging: Boolean,
+    private val isHovered: Boolean,
+    private val radius: Double = 8.0
+) {
+    fun isActive(): Boolean = isDragging || isHovered
 
-    /**
-     * Dibuja los efectos visuales del proyectil interactivo.
-     *
-     * @param gc Contexto gráfico del canvas.
-     * @param x Coordenada X del proyectil en el canvas.
-     * @param y Coordenada Y del proyectil en el canvas.
-     * @param isDragging Indica si el usuario está actualmente arrastrando el proyectil.
-     * @param isHovered Indica si el cursor está sobre la trayectoria o el proyectil.
-     * @param radius Radio base del proyectil en píxeles.
-     */
-    fun drawInteractiveEffects(
-        gc: GraphicsContext,
-        x: Double,
-        y: Double,
-        isDragging: Boolean,
-        isHovered: Boolean,
-        radius: Double = 8.0
-    ) {
-        if (!isDragging && !isHovered) return
+    fun isDraggingNow(): Boolean = isDragging
 
-        if (isDragging) {
-            // Halo brillante ámbar/dorado cuando está siendo arrastrado
-            gc.fill = Color.rgb(250, 204, 21, 0.25)
-            gc.fillOval(x - radius * 2.2, y - radius * 2.2, radius * 4.4, radius * 4.4)
+    fun centerX(): Double = x
 
-            // Anillo exterior de enfoque
-            gc.stroke = Color.rgb(250, 204, 21, 0.9)
-            gc.lineWidth = 2.0
-            gc.strokeOval(x - radius * 1.5, y - radius * 1.5, radius * 3.0, radius * 3.0)
+    fun centerY(): Double = y
 
-            // Retícula o cruz sutil
-            gc.stroke = Color.rgb(255, 255, 255, 0.7)
-            gc.lineWidth = 1.0
-            gc.strokeLine(x - radius * 2.0, y, x + radius * 2.0, y)
-            gc.strokeLine(x, y - radius * 2.0, x, y + radius * 2.0)
-        } else if (isHovered) {
-            // Halo cian suave para indicar que es interactivo
-            gc.fill = Color.rgb(56, 189, 248, 0.20)
-            gc.fillOval(x - radius * 1.8, y - radius * 1.8, radius * 3.6, radius * 3.6)
+    fun projectileRadius(): Double = radius
+}
 
-            gc.stroke = Color.rgb(56, 189, 248, 0.8)
-            gc.lineWidth = 1.5
-            gc.strokeOval(x - radius * 1.3, y - radius * 1.3, radius * 2.6, radius * 2.6)
+/**
+ * Contrato para efectos visuales interactivos del proyectil durante scrubbing (DIP).
+ */
+interface IInteractiveProjectileRenderer {
+    fun drawInteractiveEffects(gc: GraphicsContext, effectState: InteractiveEffectState)
+}
+
+/**
+ * Renderizador de efectos visuales interactivos para el proyectil durante el modo Scrubbing (SRP + DIP).
+ */
+class InteractiveProjectileRenderer : IInteractiveProjectileRenderer {
+
+    override fun drawInteractiveEffects(gc: GraphicsContext, effectState: InteractiveEffectState) {
+        if (!effectState.isActive()) return
+
+        gc.save()
+        try {
+            if (effectState.isDraggingNow()) {
+                drawDraggingFeedback(gc, effectState.centerX(), effectState.centerY(), effectState.projectileRadius())
+            } else {
+                drawHoveredFeedback(gc, effectState.centerX(), effectState.centerY(), effectState.projectileRadius())
+            }
+        } finally {
+            gc.restore()
         }
+    }
+
+    private fun drawDraggingFeedback(gc: GraphicsContext, x: Double, y: Double, radius: Double) {
+        gc.fill = Color.rgb(250, 204, 21, 0.25)
+        gc.fillOval(x - radius * 2.2, y - radius * 2.2, radius * 4.4, radius * 4.4)
+
+        gc.stroke = Color.rgb(250, 204, 21, 0.9)
+        gc.lineWidth = 2.0
+        gc.strokeOval(x - radius * 1.5, y - radius * 1.5, radius * 3.0, radius * 3.0)
+
+        gc.stroke = Color.rgb(255, 255, 255, 0.7)
+        gc.lineWidth = 1.0
+        gc.strokeLine(x - radius * 2.0, y, x + radius * 2.0, y)
+        gc.strokeLine(x, y - radius * 2.0, x, y + radius * 2.0)
+    }
+
+    private fun drawHoveredFeedback(gc: GraphicsContext, x: Double, y: Double, radius: Double) {
+        gc.fill = Color.rgb(56, 189, 248, 0.20)
+        gc.fillOval(x - radius * 1.8, y - radius * 1.8, radius * 3.6, radius * 3.6)
+
+        gc.stroke = Color.rgb(56, 189, 248, 0.8)
+        gc.lineWidth = 1.5
+        gc.strokeOval(x - radius * 1.3, y - radius * 1.3, radius * 2.6, radius * 2.6)
     }
 }

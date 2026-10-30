@@ -4,6 +4,8 @@ import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import javafx.scene.shape.StrokeLineCap
 import javafx.scene.shape.StrokeLineJoin
+import kotlin.math.abs
+import kotlin.math.hypot
 
 /**
  * Punto individual de la estela con coordenadas y marca temporal de creación.
@@ -11,205 +13,178 @@ import javafx.scene.shape.StrokeLineJoin
 data class TrailPoint(
     val x: Double,
     val y: Double,
-    val timestampNano: Long,
-)
+    private val timestampNano: Long
+) {
+    fun createdAtNano(): Long = timestampNano
+
+    fun distanceTo(otherX: Double, otherY: Double): Double = hypot(x - otherX, y - otherY)
+
+    fun isVeryCloseTo(otherX: Double, otherY: Double): Boolean =
+        abs(x - otherX) < 0.5 && abs(y - otherY) < 0.5
+}
 
 /**
- * Renderizador de la estela o rastro continuo del proyectil (SRP + DIP + OCP).
- *
- * Responsabilidad Única:
- *  - Almacenar los puntos del recorrido del proyectil con su timestamp exacto.
- *  - Renderizar la estela continua y desvanecerla progresivamente DESDE EL PUNTO DE PARTIDA (boca del cañón)
- *    hacia la cabeza del proyectil a partir de los 2 segundos posteriores al disparo.
- *
- * Principios SOLID:
- *  - SRP: Se encarga únicamente del almacenamiento, ciclo de vida temporal y dibujo de la estela.
- *  - OCP: Tiempos de retardo (fadeDelaySeconds), duración de desvanecimiento (fadeDurationSeconds),
- *    opacidad base y estilos son configurables por constructor.
- *  - LSP: Comportamiento determinista y compatible con implementaciones de testing.
- *  - ISP: Expone métodos específicos y mínimos (addPoint, clear, recordLaunch, getOpacity, drawPath).
- *  - DIP: [GraphicsContext] desacoplado y nullable; marcas de tiempo inyectables para pruebas unitarias sin GUI.
- *
- * @param gc Contexto gráfico del canvas (opcional para permitir pruebas unitarias sin JavaFX).
- * @param fadeDelaySeconds Tiempo en segundos antes de comenzar el desvanecimiento (default: 2.0s).
- * @param fadeDurationSeconds Duración en segundos que tarda la estela en disolverse a 0.0 (default: 1.2s).
- * @param baseAlpha Opacidad inicial del trazo (default: 0.55).
+ * Contrato abstracto para el renderizador de trayectorias (DIP).
  */
-class PathRenderer(
-    private val gc: GraphicsContext? = null,
-    val fadeDelaySeconds: Double = 2.0,
-    val fadeDurationSeconds: Double = 1.2,
-    val baseAlpha: Double = 0.55,
+interface IPathRenderer {
+    var isFrozen: Boolean
+    val pointCount: Int
+    fun freeze()
+    fun unfreeze()
+    fun recordLaunch(nowNano: Long = System.nanoTime())
+    fun addPoint(x: Double, y: Double, nowNano: Long = System.nanoTime())
+    fun clear()
+    fun getPoints(): List<Pair<Double, Double>>
+    fun getTrailPoints(): List<TrailPoint>
+    fun getFadeProgress(nowNano: Long = System.nanoTime()): Double
+    fun getOpacity(nowNano: Long = System.nanoTime()): Double
+    fun getPointAlpha(point: TrailPoint, nowNano: Long = System.nanoTime()): Double
+    fun drawPath(nowNano: Long = System.nanoTime())
+}
+
+/**
+ * Reloj temporal de desvanecimiento progresivo de la estela (SRP).
+ */
+private class TrailFadeClock(
+    private val fadeDelaySeconds: Double,
+    private val fadeDurationSeconds: Double
 ) {
-    // Puntos acumulados de la estela en orden cronológico
-    private val points = mutableListOf<TrailPoint>()
-
-    // Marca temporal del momento del disparo
     private var launchTimestampNano: Long = 0L
-
-    /** Indica si el desvanecimiento está congelado (por ejemplo, para permitir scrubbing tras el impacto). */
     var isFrozen: Boolean = false
 
-    /** Congela el desvanecimiento para mantener la trayectoria completamente visible tras el impacto */
-    fun freeze() {
-        isFrozen = true
-    }
-
-    /** Descongela el desvanecimiento */
-    fun unfreeze() {
-        isFrozen = false
-    }
-
-    /**
-     * Registra el instante exacto del disparo para iniciar el conteo del desvanecimiento temporal.
-     *
-     * @param nowNano Marca de tiempo en nanosegundos (por defecto System.nanoTime()).
-     */
-    fun recordLaunch(nowNano: Long = System.nanoTime()) {
+    fun recordLaunch(nowNano: Long) {
         launchTimestampNano = nowNano
         isFrozen = false
     }
 
-    /**
-     * Agrega un nuevo punto a la trayectoria registrando la marca de tiempo actual.
-     */
-    fun addPoint(x: Double, y: Double, nowNano: Long = System.nanoTime()) {
-        if (points.isNotEmpty()) {
-            val last = points.last()
-            if (kotlin.math.abs(last.x - x) < 0.5 && kotlin.math.abs(last.y - y) < 0.5) {
-                return
-            }
-        }
-        points.add(TrailPoint(x, y, nowNano))
-    }
-
-    /**
-     * Limpia la trayectoria acumulada y reinicia la marca temporal del lanzamiento.
-     */
-    fun clear() {
-        points.clear()
+    fun reset() {
         launchTimestampNano = 0L
         isFrozen = false
     }
 
-    /** Cantidad de puntos actualmente activos en la trayectoria. */
-    val pointCount: Int get() = points.size
-
-    /** Retorna una copia de los puntos acumulados como pares (x, y). */
-    fun getPoints(): List<Pair<Double, Double>> = points.map { Pair(it.x, it.y) }
-
-    /** Retorna los puntos con su metadata interna. */
-    fun getTrailPoints(): List<TrailPoint> = points.toList()
-
-    /**
-     * Marca temporal efectiva del inicio del disparo.
-     * Si no se invocó recordLaunch, se utiliza la marca del primer punto disponible.
-     */
-    private fun effectiveLaunchNano(): Long =
-        if (launchTimestampNano != 0L) launchTimestampNano else (points.firstOrNull()?.timestampNano ?: 0L)
-
-    /**
-     * Calcula el progreso del desvanecimiento en el rango [0.0, 1.0]:
-     *  - Si está congelado ([isFrozen]), progreso 0.0 (opacidad máxima).
-     *  - t <= fadeDelaySeconds (2.0s): progreso 0.0 (opacidad máxima sin desvanecimiento).
-     *  - fadeDelaySeconds < t < fadeDelaySeconds + fadeDurationSeconds: progreso proporcional de 0.0 a 1.0.
-     *  - t >= fadeDelaySeconds + fadeDurationSeconds: progreso 1.0 (disuelto por completo).
-     */
-    fun getFadeProgress(nowNano: Long = System.nanoTime()): Double {
+    fun computeProgress(nowNano: Long, fallbackFirstPointNano: Long): Double {
         if (isFrozen) return 0.0
-        val launch = effectiveLaunchNano()
+        val launch = if (launchTimestampNano != 0L) launchTimestampNano else fallbackFirstPointNano
         if (launch == 0L) return 0.0
         val age = (nowNano - launch) / 1_000_000_000.0
-        if (age <= fadeDelaySeconds) {
-            return 0.0
+        return if (age <= fadeDelaySeconds) 0.0 else ((age - fadeDelaySeconds) / fadeDurationSeconds).coerceIn(0.0, 1.0)
+    }
+}
+
+/**
+ * Pintor dedicado al trazado gráfico de la estela en el contexto de JavaFX (SRP).
+ */
+private class TrailStrokePainter(
+    private val gc: GraphicsContext?,
+    private val baseAlpha: Double
+) {
+    fun paint(points: List<TrailPoint>, fadeProgress: Double) {
+        val context = gc ?: return
+        context.save()
+        try {
+            context.lineWidth = 3.5
+            context.lineCap = StrokeLineCap.ROUND
+            context.lineJoin = StrokeLineJoin.ROUND
+            context.setLineDashes()
+            if (fadeProgress <= 0.0) drawSolid(context, points) else drawFading(context, points, fadeProgress)
+        } finally {
+            context.restore()
         }
-        return ((age - fadeDelaySeconds) / fadeDurationSeconds).coerceIn(0.0, 1.0)
     }
 
-    /**
-     * Retorna la opacidad general de la estela en función de la antigüedad desde el disparo:
-     *  - Antigüedad <= [fadeDelaySeconds] (2.0s): opacidad máxima [baseAlpha].
-     *  - Antigüedad entre 2.0s y 2.0s + [fadeDurationSeconds]: desvanecimiento suave a 0.0.
-     *  - Antigüedad >= 2.0s + [fadeDurationSeconds]: disuelto (0.0).
-     */
-    fun getOpacity(nowNano: Long = System.nanoTime()): Double {
-        val progress = getFadeProgress(nowNano)
-        return (baseAlpha * (1.0 - progress)).coerceAtLeast(0.0)
+    private fun drawSolid(context: GraphicsContext, points: List<TrailPoint>) {
+        context.stroke = Color.rgb(66, 153, 225, baseAlpha)
+        context.beginPath()
+        context.moveTo(points[0].x, points[0].y)
+        for (i in 1 until points.size) {
+            context.lineTo(points[i].x, points[i].y)
+        }
+        context.stroke()
     }
 
-    /**
-     * Calcula la opacidad individual de un punto en función del desvanecimiento progresivo
-     * desde el punto de partida hacia el proyectil.
-     */
-    fun getPointAlpha(point: TrailPoint, nowNano: Long = System.nanoTime()): Double {
+    private fun drawFading(context: GraphicsContext, points: List<TrailPoint>, fadeProgress: Double) {
+        val totalSegments = points.size - 1
+        for (i in 0 until totalSegments) {
+            val u2 = (i + 1).toDouble() / totalSegments
+            if (u2 > fadeProgress) {
+                val uMid = (i + 0.5) / totalSegments
+                val factor = ((uMid - fadeProgress) / (1.0 - fadeProgress)).coerceIn(0.0, 1.0)
+                val alpha = (baseAlpha * factor).coerceIn(0.0, baseAlpha)
+                drawSegmentWithAlpha(context, points[i], points[i + 1], alpha)
+            }
+        }
+    }
+
+    private fun drawSegmentWithAlpha(context: GraphicsContext, p1: TrailPoint, p2: TrailPoint, alpha: Double) {
+        if (alpha > 0.01) {
+            context.stroke = Color.rgb(66, 153, 225, alpha)
+            context.strokeLine(p1.x, p1.y, p2.x, p2.y)
+        }
+    }
+}
+
+/**
+ * Renderizador y gestor temporal de la estela continua del proyectil (SRP + DIP + OCP).
+ */
+class PathRenderer(
+    gc: GraphicsContext? = null,
+    fadeDelaySeconds: Double = 2.0,
+    fadeDurationSeconds: Double = 1.2,
+    private val baseAlpha: Double = 0.55
+) : IPathRenderer {
+    private val painter = TrailStrokePainter(gc, baseAlpha)
+    private val fadeClock = TrailFadeClock(fadeDelaySeconds, fadeDurationSeconds)
+    private val points = mutableListOf<TrailPoint>()
+
+    override var isFrozen: Boolean
+        get() = fadeClock.isFrozen
+        set(value) { fadeClock.isFrozen = value }
+
+    override val pointCount: Int get() = points.size
+
+    override fun freeze() { fadeClock.isFrozen = true }
+
+    override fun unfreeze() { fadeClock.isFrozen = false }
+
+    override fun recordLaunch(nowNano: Long) = fadeClock.recordLaunch(nowNano)
+
+    override fun addPoint(x: Double, y: Double, nowNano: Long) {
+        if (points.lastOrNull()?.isVeryCloseTo(x, y) == true) return
+        points.add(TrailPoint(x, y, nowNano))
+    }
+
+    override fun clear() {
+        points.clear()
+        fadeClock.reset()
+    }
+
+    override fun getPoints(): List<Pair<Double, Double>> = points.map { Pair(it.x, it.y) }
+
+    override fun getTrailPoints(): List<TrailPoint> = points.toList()
+
+    override fun getFadeProgress(nowNano: Long): Double =
+        fadeClock.computeProgress(nowNano, points.firstOrNull()?.createdAtNano() ?: 0L)
+
+    override fun getOpacity(nowNano: Long): Double =
+        (baseAlpha * (1.0 - getFadeProgress(nowNano))).coerceAtLeast(0.0)
+
+    override fun getPointAlpha(point: TrailPoint, nowNano: Long): Double {
         val progress = getFadeProgress(nowNano)
-        if (progress >= 1.0) return 0.0
-        if (progress <= 0.0) return baseAlpha
+        if (progress <= 0.0 || progress >= 1.0) return if (progress >= 1.0) 0.0 else baseAlpha
         val idx = points.indexOf(point)
         if (idx < 0 || points.size <= 1) return getOpacity(nowNano)
         val u = idx.toDouble() / (points.size - 1.0)
-        if (u <= progress) return 0.0
-        val factor = ((u - progress) / (1.0 - progress)).coerceIn(0.0, 1.0)
-        return (baseAlpha * factor).coerceIn(0.0, baseAlpha)
+        return if (u <= progress) 0.0 else (baseAlpha * ((u - progress) / (1.0 - progress))).coerceIn(0.0, baseAlpha)
     }
 
-    /**
-     * Dibuja la línea continua de la trayectoria aplicando el desvanecimiento progresivo
-     * que comienza a disolver el rastro DESDE EL PUNTO DE PARTIDA (boca del cañón) hacia el proyectil
-     * a partir de los 2 segundos posteriores al disparo.
-     *
-     * Al alcanzar el tiempo de disolución total (progreso >= 1.0), purga los puntos automáticamente.
-     */
-    fun drawPath(nowNano: Long = System.nanoTime()) {
+    override fun drawPath(nowNano: Long) {
         val fadeProgress = getFadeProgress(nowNano)
-
-        // Limpiar puntos si expiró por completo el tiempo de permanencia
         if (fadeProgress >= 1.0) {
             points.clear()
             return
         }
-
-        if (points.size < 2) {
-            return
-        }
-
-        val context = gc ?: return
-
-        context.lineWidth = 3.5
-        context.lineCap = StrokeLineCap.ROUND
-        context.lineJoin = StrokeLineJoin.ROUND
-        context.setLineDashes()
-
-        // 1. Antes de los 2 segundos: trazo continuo de alto rendimiento (1 solo path batch, 60+ FPS sin stutter)
-        if (fadeProgress <= 0.0) {
-            context.stroke = Color.rgb(66, 153, 225, baseAlpha)
-            context.beginPath()
-            context.moveTo(points[0].x, points[0].y)
-            for (i in 1 until points.size) {
-                context.lineTo(points[i].x, points[i].y)
-            }
-            context.stroke()
-            return
-        }
-
-        // 2. A partir de los 2 segundos: desvanecimiento progresivo DESDE EL PUNTO DE PARTIDA (origen)
-        // Los primeros puntos emitidos en la boca del cañón se disuelven primero
-        val totalSegments = points.size - 1
-        for (i in 0 until totalSegments) {
-            val u2 = (i + 1).toDouble() / totalSegments
-            if (u2 <= fadeProgress) {
-                // Segmento disuelto por completo en el origen
-                continue
-            }
-
-            val uMid = (i + 0.5) / totalSegments
-            val factor = ((uMid - fadeProgress) / (1.0 - fadeProgress)).coerceIn(0.0, 1.0)
-            val segmentAlpha = (baseAlpha * factor).coerceIn(0.0, baseAlpha)
-
-            if (segmentAlpha > 0.01) {
-                context.stroke = Color.rgb(66, 153, 225, segmentAlpha)
-                context.strokeLine(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y)
-            }
+        if (points.size >= 2) {
+            painter.paint(points, fadeProgress)
         }
     }
 }

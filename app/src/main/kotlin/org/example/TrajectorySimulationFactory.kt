@@ -3,6 +3,10 @@ package org.example
 import org.example.collision.CollisionDetector
 import org.example.collision.XAxisCollisionDetector
 import org.example.model.TrajectoryMatrix
+import org.example.telemetry.InstantaneousStateApi
+import org.example.telemetry.TelemetryFactory
+import org.example.telemetry.TrajectoryInspector
+import org.example.telemetry.TrajectoryNearestNeighborSearcher
 import org.example.trajectory.BinaryTrajectorySearcher
 import org.example.trajectory.LinearTrajectoryInterpolator
 import org.example.trajectory.SamplingTrajectoryMatrixGenerator
@@ -10,46 +14,71 @@ import org.example.trajectory.TrajectoryInterpolator
 import org.example.trajectory.TrajectoryMatrixGenerator
 import org.example.trajectory.TrajectorySearcher
 
-// PhysicsParams y TrajectoryCalculator se toman de org.example (Physics.kt)
+/**
+ * Contrato abstracto para la fábrica ensambladora de subsistemas cinemáticos (DIP).
+ */
+interface ITrajectorySimulationFactory {
+    fun buildCalculator(): TrajectoryCalculator
+    fun buildGenerator(calculator: TrajectoryCalculator = buildCalculator()): TrajectoryMatrixGenerator
+    fun buildSearcher(): TrajectorySearcher
+    fun buildInterpolator(): TrajectoryInterpolator
+    fun buildCollisionDetector(interpolator: TrajectoryInterpolator = buildInterpolator()): CollisionDetector
+}
 
 /**
- * Fábrica que ensambla las dependencias de la simulación de trayectoria.
- *
- * Principio de Inversión de Dependencias (DIP): centraliza la construcción de
- * objetos, desacoplándola de su uso. El cliente recibe abstracciones sin conocer
- * las implementaciones concretas.
- * Principio de Responsabilidad Única (SRP): único punto de ensamblaje del módulo.
+ * Implementación inyectable por constructor de los ensambladores de trayectoria (SRP + DIP).
  */
-class TrajectorySimulationFactory {
+class DefaultTrajectorySimulationFactory(
+    private val calculatorProvider: () -> TrajectoryCalculator = TrajectoryCalculatorFactory::createParabolic,
+    private val searcherProvider: () -> TrajectorySearcher = ::BinaryTrajectorySearcher,
+    private val interpolatorProvider: () -> TrajectoryInterpolator = ::LinearTrajectoryInterpolator,
+    private val defaultTolerance: Double = XAxisCollisionDetector.DEFAULT_TOLERANCE
+) : ITrajectorySimulationFactory {
+
+    override fun buildCalculator(): TrajectoryCalculator = calculatorProvider()
+
+    override fun buildGenerator(calculator: TrajectoryCalculator): TrajectoryMatrixGenerator =
+        SamplingTrajectoryMatrixGenerator(calculator)
+
+    override fun buildSearcher(): TrajectorySearcher = searcherProvider()
+
+    override fun buildInterpolator(): TrajectoryInterpolator = interpolatorProvider()
+
+    override fun buildCollisionDetector(interpolator: TrajectoryInterpolator): CollisionDetector =
+        XAxisCollisionDetector(interpolator, defaultTolerance)
+}
+
+/**
+ * Fachada de fábrica de compatibilidad para ensamblar subsistemas de simulación (SRP + DIP).
+ */
+class TrajectorySimulationFactory(
+    private val delegate: ITrajectorySimulationFactory = DefaultTrajectorySimulationFactory()
+) {
+    fun buildCollisionDetector(interpolator: TrajectoryInterpolator = delegate.buildInterpolator()): CollisionDetector =
+        delegate.buildCollisionDetector(interpolator)
 
     companion object {
-        /** Crea la calculadora de cinemática (reutiliza la fábrica de Physics.kt). */
-        fun createCalculator(): TrajectoryCalculator = TrajectoryCalculatorFactory.createParabolic()
+        private val defaultFactory: ITrajectorySimulationFactory = DefaultTrajectorySimulationFactory()
 
-        /** Crea el generador de matriz de trayectoria. */
-        fun createGenerator(
-            calculator: TrajectoryCalculator = createCalculator()
-        ): TrajectoryMatrixGenerator = SamplingTrajectoryMatrixGenerator(calculator)
+        fun createCalculator(): TrajectoryCalculator = defaultFactory.buildCalculator()
 
-        /** Crea el buscador de puntos sobre la trayectoria. */
-        fun createSearcher(): TrajectorySearcher = BinaryTrajectorySearcher()
+        fun createGenerator(calculator: TrajectoryCalculator = createCalculator()): TrajectoryMatrixGenerator =
+            defaultFactory.buildGenerator(calculator)
 
-        /** Crea el interpolador de trayectoria. */
-        fun createInterpolator(): TrajectoryInterpolator = LinearTrajectoryInterpolator()
+        fun createSearcher(): TrajectorySearcher = defaultFactory.buildSearcher()
 
-        /** Crea el detector de colisiones. */
-        fun createCollisionDetector(
-            interpolator: TrajectoryInterpolator = createInterpolator(),
-            tolerance: Double = XAxisCollisionDetector.DEFAULT_TOLERANCE
-        ): CollisionDetector = XAxisCollisionDetector(interpolator, tolerance)
+        fun createInterpolator(): TrajectoryInterpolator = defaultFactory.buildInterpolator()
 
-        /**
-         * Flujo típico de la Issue 2.1: genera la matriz a partir de parámetros
-         * y la devuelve lista para ser consumida por el detector y el renderizado.
-         */
-        fun generateMatrix(
-            params: PhysicsParams,
-            samplesPerSecond: Int = SamplingTrajectoryMatrixGenerator.DEFAULT_SAMPLES_PER_SECOND
-        ): TrajectoryMatrix = createGenerator().generate(params, samplesPerSecond)
+        fun createCollisionDetector(interpolator: TrajectoryInterpolator = createInterpolator(), tolerance: Double = XAxisCollisionDetector.DEFAULT_TOLERANCE): CollisionDetector =
+            XAxisCollisionDetector(interpolator, tolerance)
+
+        fun generateMatrix(params: PhysicsParams, samplesPerSecond: Int = SamplingTrajectoryMatrixGenerator.DEFAULT_SAMPLES_PER_SECOND): TrajectoryMatrix =
+            createGenerator().generate(params, samplesPerSecond)
+
+        fun createInstantaneousStateApi(searcher: TrajectoryNearestNeighborSearcher = TelemetryFactory.createSearcher()): InstantaneousStateApi =
+            TelemetryFactory.createApi(searcher)
+
+        fun createTrajectoryInspector(matrix: TrajectoryMatrix): TrajectoryInspector =
+            TelemetryFactory.createInspector(matrix)
     }
 }

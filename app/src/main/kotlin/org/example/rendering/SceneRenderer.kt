@@ -1,113 +1,131 @@
 package org.example.rendering
 
-// --- Imports de JavaFX y del modelo ---
 import javafx.scene.canvas.GraphicsContext
 import org.example.model.SimulationState
 import org.example.scrubbing.IHudRenderer
+import org.example.scrubbing.IInteractiveProjectileRenderer
+import org.example.scrubbing.IScrubbingController
 import org.example.scrubbing.ITooltipRenderer
+import org.example.scrubbing.InteractiveEffectState
 import org.example.scrubbing.InteractiveProjectileRenderer
 import org.example.scrubbing.ResultsHUD
-import org.example.scrubbing.ScrubbingController
+import org.example.scrubbing.TooltipAnchor
 import org.example.scrubbing.TooltipRenderer
 
 /**
- * Orquestador del renderizado de la escena (SRP + OCP + DIP).
- *
- * Su única responsabilidad es coordinar, en el orden correcto, la
- * pintura de fondo, suelo, cañón, estela, proyectil, indicador de
- * ángulo, diana, efectos interactivos de arrastre, HUD de resultados
- * y etiqueta flotante (tooltip).
- *
- * @property gc Contexto gráfico sobre el que se dibuja todo.
- * @property state Estado de la simulación (se lee para dibujar).
- * @property cfg Configuración geométrica del escenario.
- * @property pathRenderer Renderizador de la estela continua.
- * @property targetRenderer Renderizador de la diana arrastrable.
- * @property scrubbingController Controlador de interacción y arrastre sobre la trayectoria (Issue 3.2).
- * @property resultsHud Renderizador de la tarjeta de resultados finales (Issue 3.2).
- * @property tooltipRenderer Renderizador de la etiqueta flotante de telemetría (Issue 3.2).
- * @property interactiveProjectileRenderer Renderizador de halo y foco del proyectil interactivo.
+ * Contrato de renderizado para orquestadores gráficos de la escena (DIP + ISP).
  */
-class SceneRenderer(
+interface ISceneRenderer {
+    var scrubbingController: IScrubbingController?
+    fun render()
+}
+
+/**
+ * Abstracción para el pintado del entorno base y actores principales (DIP).
+ */
+interface ISceneEnvironmentPainter {
+    fun clearAndDrawBackdrop()
+    fun drawCannonAndAngle(angle: Double)
+    fun drawProjectile(x: Double, y: Double)
+}
+
+/**
+ * Abstracción para el pintado de superposiciones interactivas (HUD y Tooltip) (DIP).
+ */
+interface ISceneOverlayRenderer {
+    fun renderOverlay(controller: IScrubbingController?)
+}
+
+/**
+ * Sub-renderizador del entorno y actores principales (fondo, suelo, cañón y proyectil) (SRP).
+ */
+class SceneEnvironmentPainter(
+    private val gc: GraphicsContext,
+    private val cfg: SceneConfig,
+    private val scenery: IScenery = Scenery(gc, cfg),
+    private val cannonRenderer: ICannonRenderer = CannonRenderer(gc, cfg),
+    private val projectileRenderer: IProjectileRenderer = ProjectileRenderer(gc, cfg)
+) : ISceneEnvironmentPainter {
+    override fun clearAndDrawBackdrop() {
+        gc.clearRect(0.0, 0.0, cfg.canvasWidth, cfg.canvasHeight)
+        scenery.drawBackground()
+        scenery.drawGround()
+    }
+
+    override fun drawCannonAndAngle(angle: Double) {
+        cannonRenderer.drawCannon(angle)
+        projectileRenderer.drawAngleIndicator(angle)
+    }
+
+    override fun drawProjectile(x: Double, y: Double) {
+        projectileRenderer.drawProjectile(x, y)
+    }
+}
+
+/**
+ * Sub-renderizador cohesivo de las capas interactivas de distancia al objetivo, scrubbing, HUD y tooltip (SRP + DIP).
+ */
+class SceneOverlayRenderer(
     private val gc: GraphicsContext,
     private val state: SimulationState,
     private val cfg: SceneConfig,
-    private val pathRenderer: PathRenderer,
-    private val targetRenderer: TargetRenderer,
-    var scrubbingController: ScrubbingController? = null,
-    val resultsHud: IHudRenderer = ResultsHUD(x = 20.0, y = 20.0),
-    val tooltipRenderer: ITooltipRenderer = TooltipRenderer(),
-    val interactiveProjectileRenderer: InteractiveProjectileRenderer = InteractiveProjectileRenderer(),
-) {
-    // Renderizador del fondo (cielo, sol, nube, colinas, pasto).
-    private val scenery = Scenery(gc, cfg)
-    // Renderizador del cañón (tubo, boca, recámara, base).
-    private val cannonRenderer = CannonRenderer(gc, cfg)
-    // Renderizador del proyectil e indicador de ángulo.
-    private val projectileRenderer = ProjectileRenderer(gc, cfg)
+    private val targetDistanceHud: ITargetDistanceHud = TargetDistanceHud(cfg, DefaultCoordinateTransformer(cfg)),
+    private val resultsHud: IHudRenderer = ResultsHUD(x = 24.0, y = 24.0),
+    private val tooltipRenderer: ITooltipRenderer = TooltipRenderer(),
+    private val effectRenderer: IInteractiveProjectileRenderer = InteractiveProjectileRenderer()
+) : ISceneOverlayRenderer {
+    override fun renderOverlay(controller: IScrubbingController?) {
+        targetDistanceHud.render(gc, state.targetX)
+        val active = controller ?: return
+        if (!active.isEnabled) return
 
-    /**
-     * Renderiza un fotograma completo leyendo el estado actual.
-     * Orden de pintado: limpiar, fondo, suelo, estela continua,
-     * cañón, indicador de ángulo, diana, proyectil (por delante del objetivo),
-     * efectos interactivos, tarjeta HUD de resultados y etiqueta flotante (tooltip).
-     */
-    fun render() {
-        // 1. Limpia el canvas para empezar un fotograma nuevo.
-        gc.clearRect(0.0, 0.0, cfg.canvasWidth, cfg.canvasHeight)
+        val fxState = InteractiveEffectState(state.projectileX, state.projectileY, active.isDragging, active.isHovered)
+        effectRenderer.drawInteractiveEffects(gc, fxState)
+        active.flightSummary?.let { resultsHud.render(gc, it) }
 
-        // 2. Dibuja el fondo: cielo y pasto.
-        scenery.drawBackground()
+        if (active.isDragging || active.isHovered) {
+            active.currentPoint?.let { point ->
+                val anchor = TooltipAnchor(state.projectileX, state.projectileY, cfg.canvasWidth, cfg.canvasHeight)
+                tooltipRenderer.render(gc, point, anchor)
+            }
+        }
+    }
+}
 
-        // 3. Dibuja la línea del suelo.
-        scenery.drawGround()
+/**
+ * Orquestador del renderizado de la escena desacoplado por constructores e interfaces (SRP + OCP + DIP).
+ */
+class SceneRenderer(
+    private val state: SimulationState,
+    private val pathRenderer: IPathRenderer,
+    private val targetRenderer: ITargetRenderer,
+    private val envPainter: ISceneEnvironmentPainter,
+    private val overlayRenderer: ISceneOverlayRenderer
+) : ISceneRenderer {
 
-        // 4. Dibuja la estela continua del proyectil (detrás del cañón).
+    constructor(
+        gc: GraphicsContext,
+        state: SimulationState,
+        cfg: SceneConfig,
+        pathRenderer: IPathRenderer,
+        targetRenderer: ITargetRenderer,
+        transformer: CoordinateTransformer = DefaultCoordinateTransformer(cfg)
+    ) : this(
+        state = state,
+        pathRenderer = pathRenderer,
+        targetRenderer = targetRenderer,
+        envPainter = SceneEnvironmentPainter(gc, cfg),
+        overlayRenderer = SceneOverlayRenderer(gc, state, cfg, TargetDistanceHud(cfg, transformer))
+    )
+
+    override var scrubbingController: IScrubbingController? = null
+
+    override fun render() {
+        envPainter.clearAndDrawBackdrop()
         pathRenderer.drawPath()
-
-        // 5. Dibuja el cañón rotado según el ángulo actual.
-        cannonRenderer.drawCannon(state.angle)
-
-        // 6. Dibuja el indicador del ángulo sobre la base del cañón.
-        projectileRenderer.drawAngleIndicator(state.angle)
-
-        // 7. Dibuja la diana en el suelo (detrás del proyectil para que el impacto quede al frente).
+        envPainter.drawCannonAndAngle(state.angle)
         targetRenderer.drawTarget(state.targetX)
-
-        // 8. Dibuja el proyectil en su posición actual (por delante / arriba del objetivo).
-        projectileRenderer.drawProjectile(state.projectileX, state.projectileY)
-
-        // 9. Efectos visuales interactivos sobre el proyectil si el scrubbing está activo (Issue 3.2)
-        val controller = scrubbingController
-        if (controller?.isEnabled == true) {
-            interactiveProjectileRenderer.drawInteractiveEffects(
-                gc = gc,
-                x = state.projectileX,
-                y = state.projectileY,
-                isDragging = controller.isDragging,
-                isHovered = controller.isHovered
-            )
-        }
-
-        // 10. Dibuja la tarjeta de resultados estática en pantalla si el vuelo finalizó (Issue 3.2)
-        if (controller?.isEnabled == true) {
-            controller.flightSummary?.let { summary ->
-                resultsHud.render(gc, summary)
-            }
-        }
-
-        // 11. Dibuja la etiqueta flotante (tooltip) en tiempo real siguiendo al proyectil (Issue 3.2)
-        if (controller?.isEnabled == true && (controller.isDragging || controller.isHovered)) {
-            controller.currentPoint?.let { point ->
-                tooltipRenderer.render(
-                    gc = gc,
-                    point = point,
-                    targetCanvasX = state.projectileX,
-                    targetCanvasY = state.projectileY,
-                    canvasWidth = cfg.canvasWidth,
-                    canvasHeight = cfg.canvasHeight
-                )
-            }
-        }
+        envPainter.drawProjectile(state.projectileX, state.projectileY)
+        overlayRenderer.renderOverlay(scrubbingController)
     }
 }

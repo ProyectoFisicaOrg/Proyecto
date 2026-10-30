@@ -10,13 +10,20 @@ import org.example.collision.CollisionResult
  * por el módulo del Issue 2.1 exactamente al impactar el suelo,
  * sin acoplar la física a la presentación.
  */
-fun interface CollisionListener {
+interface CollisionListener {
     /**
      * Invocado exactamente al impactar el suelo con el resultado del validador de colisión (Issue 2.1).
      *
      * @param result Resultado de la colisión (HIT, MISS, detalles de coordenadas y distancia).
      */
     fun onCollision(result: CollisionResult)
+
+    companion object {
+        inline operator fun invoke(crossinline block: (CollisionResult) -> Unit): CollisionListener =
+            object : CollisionListener {
+                override fun onCollision(result: CollisionResult) = block(result)
+            }
+    }
 }
 
 /**

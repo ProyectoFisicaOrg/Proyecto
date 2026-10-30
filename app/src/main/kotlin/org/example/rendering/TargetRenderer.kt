@@ -1,270 +1,258 @@
 package org.example.rendering
 
 import javafx.animation.AnimationTimer
+import javafx.geometry.Point2D
 import javafx.scene.Cursor
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
+import javafx.scene.input.MouseEvent
 import javafx.scene.paint.Color
+import kotlin.math.hypot
+import kotlin.math.sin
 import org.example.collision.CollisionStatus
 import org.example.model.SimulationState
 
 /**
- * Renderizador del objetivo en el suelo y gestor de arrastre sobre el eje X (SRP + DIP).
- *
- * Responsabilidad Única:
- *  - Dibujar el objetivo circular (diana) sobre la línea del suelo (eje Y fijo en groundY).
- *  - Gestionar el arrastre con el ratón limitando el desplazamiento estrictamente al eje X.
- *
- * Inversión de Dependencias (DIP):
- *  - Depende de abstracciones ([GraphicsContext], [SceneConfig], [Canvas]) y notifica
- *    cambios a través de callbacks sin acoplarse al motor de física.
- *
- * Issue 2.2 Requisito 3:
- *  - Dibujar un objetivo (círculo) en el suelo.
- *  - Permitir arrastrarlo con el mouse únicamente sobre el eje X.
+ * Contrato abstracto para el renderizador y manipulador del objetivo (DIP).
  */
-class TargetRenderer(
+interface ITargetRenderer {
+    val targetRadius: Double
+    fun drawTarget(x: Double)
+    fun startPulse()
+    fun stopPulse()
+    fun canMoveTarget(): Boolean
+    fun cancelDrag()
+    fun getValidXRange(): ClosedFloatingPointRange<Double>
+    fun randomizePosition(targetRandomizer: ITargetRandomizer = UniformTargetRandomizer()): Boolean
+    fun installDrag()
+}
+
+/**
+ * Estado visual instantáneo para el dibujado de la diana (SRP).
+ */
+private class TargetVisualFlags(
+    private val animating: Boolean,
+    private val hit: Boolean,
+    private val dragging: Boolean
+) {
+    fun isAnimating(): Boolean = animating
+    fun isHit(): Boolean = hit
+    fun isDragging(): Boolean = dragging
+
+    fun outerRingColor(): Color = when {
+        hit -> Color.rgb(46, 204, 113)
+        dragging -> Color.rgb(231, 76, 60)
+        else -> Color.rgb(217, 30, 24)
+    }
+}
+
+/**
+ * Pintor dedicado exclusivamente a la representación gráfica de la diana (SRP).
+ */
+private class TargetCanvasPainter(
     private val gc: GraphicsContext,
     private val cfg: SceneConfig,
-    private val canvas: Canvas,
-    private val state: SimulationState,
-    private val onTargetPositionChanged: (Double) -> Unit,
-    private val onRepaint: () -> Unit,
-    val randomizer: ITargetRandomizer = UniformTargetRandomizer(),
+    private val baseRadius: Double
 ) {
-    // Radio del objetivo en píxeles de canvas
-    val targetRadius: Double = 20.0
-
-    // Radio de detección para seleccionar el objetivo con el mouse
-    private val hitRadius: Double = 26.0
-
-    // Radio de detección del proyectil (que está por delante)
-    val projectileHitRadius: Double = 22.0
-
-    // Estado interno del gesto de arrastre
-    private var isDragging: Boolean = false
-    private var dragOffsetX: Double = 0.0
-
-    // Bucle para animación suave del pulso visual
-    private var pulseTimer: AnimationTimer? = null
-
-    init {
-        // Asegurar que el estado refleje el radio del objetivo
-        state.targetRadius = targetRadius
-    }
-
-    /**
-     * Dibuja el objetivo circular en la posición X dada (siempre sobre la línea del suelo).
-     */
-    fun drawTarget(x: Double) {
-        val cx = x
+    fun draw(x: Double, flags: TargetVisualFlags) {
+        val pulse = if (flags.isAnimating()) 1.0 else 1.0 + 0.06 * sin((System.nanoTime() / 1_000_000_000.0) * 3.0)
+        val r = baseRadius * pulse
         val cy = cfg.groundY
 
-        // Factor de pulso sutil cuando está en reposo
-        val time = System.nanoTime() / 1_000_000_000.0
-        val pulseFactor = if (state.isAnimating) 1.0 else 1.0 + 0.06 * Math.sin(time * 3.0)
-        val r = targetRadius * pulseFactor
-
-        // Comprobar si hubo un impacto exitoso reciente para retroalimentación visual
-        val lastCollision = state.lastCollisionResult
-        val isHit = lastCollision?.status == CollisionStatus.HIT
-
-        // 1. Sombra bajo el objetivo sobre el suelo
-        gc.fill = Color.rgb(0, 0, 0, 0.22)
-        gc.fillOval(cx - r * 1.1, cy - r * 0.4 + 4.0, r * 2.2, r * 0.8)
-
-        // 2. Anillo exterior (Verde si acertó, rojo estándar)
-        val outerColor = when {
-            isHit -> Color.rgb(46, 204, 113)      // Verde esmeralda si hubo impacto
-            isDragging -> Color.rgb(231, 76, 60) // Rojo brillante mientras se arrastra
-            else -> Color.rgb(217, 30, 24)        // Rojo clásico
+        gc.save()
+        try {
+            gc.fill = Color.rgb(0, 0, 0, 0.22)
+            gc.fillOval(x - r * 1.1, cy - r * 0.4 + 4.0, r * 2.2, r * 0.8)
+            drawConcentricRings(x, cy, r, flags)
+            drawCrosshair(x, cy, r * 0.35, flags.isHit())
+            if (flags.isDragging()) drawDragHalo(x, cy, r)
+        } finally {
+            gc.restore()
         }
-        gc.fill = outerColor
+    }
+
+    private fun drawConcentricRings(cx: Double, cy: Double, r: Double, flags: TargetVisualFlags) {
+        gc.fill = flags.outerRingColor()
         gc.fillOval(cx - r, cy - r, r * 2.0, r * 2.0)
 
-        // 3. Anillo intermedio blanco
-        gc.fill = Color.rgb(255, 255, 255)
         val midR = r * 0.65
+        gc.fill = Color.rgb(255, 255, 255)
         gc.fillOval(cx - midR, cy - midR, midR * 2.0, midR * 2.0)
 
-        // 4. Centro del objetivo (diana)
-        gc.fill = if (isHit) Color.rgb(39, 174, 96) else Color.rgb(192, 57, 43)
         val centerR = r * 0.35
+        gc.fill = if (flags.isHit()) Color.rgb(39, 174, 96) else Color.rgb(192, 57, 43)
         gc.fillOval(cx - centerR, cy - centerR, centerR * 2.0, centerR * 2.0)
+    }
 
-        // 5. Cruz / Mira central
+    private fun drawCrosshair(cx: Double, cy: Double, centerR: Double, isHit: Boolean) {
         gc.stroke = if (isHit) Color.WHITE else Color.rgb(240, 240, 240, 0.9)
         gc.lineWidth = 1.5
         gc.strokeLine(cx - centerR * 1.2, cy, cx + centerR * 1.2, cy)
         gc.strokeLine(cx, cy - centerR * 1.2, cx, cy + centerR * 1.2)
-
-        // 6. Halo visual mientras el usuario mantiene presionado y arrastra
-        if (isDragging) {
-            gc.stroke = Color.rgb(255, 230, 0, 0.8)
-            gc.lineWidth = 2.0
-            gc.strokeOval(cx - r - 4.0, cy - r - 4.0, (r + 4.0) * 2.0, (r + 4.0) * 2.0)
-        }
     }
 
-    /**
-     * Inicia el pulso visual del objetivo cuando no hay proyectil en vuelo.
-     */
-    fun startPulse() {
+    private fun drawDragHalo(cx: Double, cy: Double, r: Double) {
+        gc.stroke = Color.rgb(255, 230, 0, 0.8)
+        gc.lineWidth = 2.0
+        gc.strokeOval(cx - r - 4.0, cy - r - 4.0, (r + 4.0) * 2.0, (r + 4.0) * 2.0)
+    }
+}
+
+/**
+ * Controlador de animación de pulso en reposo del objetivo (SRP).
+ */
+private class TargetPulseController(
+    private val state: SimulationState,
+    private val onRepaint: () -> Unit
+) {
+    private var pulseTimer: AnimationTimer? = null
+
+    fun start() {
         if (pulseTimer == null) {
             pulseTimer = object : AnimationTimer() {
                 override fun handle(now: Long) {
-                    if (!state.isAnimating) {
-                        onRepaint()
-                    }
+                    if (!state.isAnimating) onRepaint()
                 }
             }
         }
         pulseTimer?.start()
     }
 
-    /**
-     * Detiene el timer de pulso.
-     */
-    fun stopPulse() {
+    fun stop() {
         pulseTimer?.stop()
         pulseTimer = null
     }
+}
 
-    /**
-     * Determina si el objetivo puede ser desplazado o manipulado.
-     * REQUISITO: Cuando sale disparada la pelota ([SimulationState.isAnimating] == true),
-     * no se puede mover el objetivo bajo ninguna circunstancia.
-     */
-    fun canMoveTarget(): Boolean = !state.isAnimating
+/**
+ * Gestor de eventos de arrastre horizontal y actualización de posición de la diana (SRP).
+ */
+private class TargetDragInteraction(
+    private val canvas: Canvas,
+    private val cfg: SceneConfig,
+    private val state: SimulationState,
+    private val onPositionChanged: (Double) -> Unit,
+    private val onRepaint: () -> Unit
+) {
+    var isDragging: Boolean = false
+        private set
+    private var dragOffsetX: Double = 0.0
 
-    /**
-     * Cancela cualquier arrastre activo en curso (por ejemplo al disparar).
-     */
-    fun cancelDrag() {
+    fun validXRange(targetRadius: Double): ClosedFloatingPointRange<Double> =
+        (cfg.cannonBaseX + 45.0)..(cfg.canvasWidth - targetRadius - 10.0)
+
+    fun applyTargetX(newX: Double) {
+        state.targetX = newX
+        onPositionChanged(newX)
+        onRepaint()
+    }
+
+    fun cancel() {
         if (isDragging) {
             isDragging = false
             canvas.cursor = Cursor.DEFAULT
         }
     }
 
-    /**
-     * Calcula los límites horizontales permitidos para la posición X del objetivo sobre el suelo.
-     */
-    fun getValidXRange(): ClosedFloatingPointRange<Double> {
-        val minX = cfg.cannonBaseX + 45.0
-        val maxX = cfg.canvasWidth - targetRadius - 10.0
-        return minX..maxX
+    fun install(targetRadius: Double) {
+        canvas.addEventHandler(MouseEvent.MOUSE_PRESSED) { onPressed(it) }
+        canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED) { onDragged(it, validXRange(targetRadius)) }
+        canvas.addEventHandler(MouseEvent.MOUSE_RELEASED) { onReleased(it) }
+        canvas.addEventHandler(MouseEvent.MOUSE_MOVED) { onMoved(it) }
     }
 
-    /**
-     * Coloca el objetivo en una posición X aleatoria válida dentro de los límites del escenario.
-     *
-     * REQUISITO: Si la pelota está en vuelo ([canMoveTarget] == false), la acción es bloqueada.
-     *
-     * @param targetRandomizer Estrategia de generación de posición aleatoria inyectada (DIP).
-     * @return true si el objetivo fue reubicado exitosamente; false si estaba bloqueado por vuelo.
-     */
-    fun randomizePosition(targetRandomizer: ITargetRandomizer = this.randomizer): Boolean {
-        if (!canMoveTarget()) return false
-
-        val range = getValidXRange()
-        val newX = targetRandomizer.calculateRandomX(range.start, range.endInclusive)
-        state.targetX = newX
-        onTargetPositionChanged(newX)
-        onRepaint()
-        return true
+    private fun isSelectableAt(local: Point2D): Boolean {
+        val overProjectile = hypot(local.x - state.projectileX, local.y - state.projectileY) <= 22.0
+        val overTarget = hypot(local.x - state.targetX, local.y - cfg.groundY) <= 26.0
+        return !overProjectile && overTarget
     }
 
-    /**
-     * Instala los controladores de eventos de mouse en el canvas para permitir
-     * arrastrar el objetivo ÚNICAMENTE a lo largo del eje X.
-     * Cede la interacción al proyectil cuando el cursor está sobre la pelota (por estar al frente).
-     * Bloquea el movimiento cuando la pelota está disparada / en vuelo.
-     */
-    fun installDrag() {
-        // Al presionar el mouse: hit-test
-        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_PRESSED) { event ->
-            if (event.isConsumed) return@addEventHandler
-
-            // REQUISITO: Cuando sale disparada la pelota no se puede mover el objetivo
-            if (!canMoveTarget()) return@addEventHandler
-
-            val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-
-            // Si el proyectil está por delante y el clic fue sobre él, ceder la selección al proyectil
-            val distToProjectile = Math.hypot(local.x - state.projectileX, local.y - state.projectileY)
-            if (distToProjectile <= projectileHitRadius) {
-                return@addEventHandler
-            }
-
-            val dx = local.x - state.targetX
-            val dy = local.y - cfg.groundY
-            val dist = Math.sqrt(dx * dx + dy * dy)
-
-            if (dist <= hitRadius) {
-                isDragging = true
-                dragOffsetX = dx
-                canvas.cursor = Cursor.CLOSED_HAND
-                onRepaint()
-                event.consume()
-            }
-        }
-
-        // Al arrastrar: actualización de X únicamente
-        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_DRAGGED) { event ->
-            if (event.isConsumed || !isDragging) return@addEventHandler
-
-            // REQUISITO: Si la pelota está en vuelo, se cancela el arrastre y no se permite mover
-            if (!canMoveTarget()) {
-                cancelDrag()
-                return@addEventHandler
-            }
-
-            val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-            val requestedX = local.x - dragOffsetX
-
-            // Límites en X: margen derecho del cañón y margen derecho del canvas
-            val range = getValidXRange()
-            val clampedX = requestedX.coerceIn(range.start, range.endInclusive)
-
-            state.targetX = clampedX
-            onTargetPositionChanged(clampedX)
+    private fun onPressed(event: MouseEvent) {
+        if (event.isConsumed || state.isAnimating) return
+        val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
+        if (isSelectableAt(local)) {
+            isDragging = true
+            dragOffsetX = local.x - state.targetX
+            canvas.cursor = Cursor.CLOSED_HAND
             onRepaint()
             event.consume()
         }
+    }
 
-        // Al soltar el mouse
-        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_RELEASED) { event ->
-            if (isDragging) {
-                isDragging = false
-                canvas.cursor = if (canMoveTarget()) Cursor.HAND else Cursor.DEFAULT
-                onRepaint()
-                event.consume()
-            }
+    private fun onDragged(event: MouseEvent, validRange: ClosedFloatingPointRange<Double>) {
+        if (event.isConsumed || !isDragging) return
+        if (state.isAnimating) {
+            cancel()
+            return
         }
+        val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
+        applyTargetX((local.x - dragOffsetX).coerceIn(validRange))
+        event.consume()
+    }
 
-        // Cursor de mano al pasar por encima del objetivo
-        canvas.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_MOVED) { event ->
-            if (event.isConsumed || isDragging) return@addEventHandler
+    private fun onReleased(event: MouseEvent) {
+        if (!isDragging) return
+        isDragging = false
+        canvas.cursor = if (!state.isAnimating) Cursor.HAND else Cursor.DEFAULT
+        onRepaint()
+        event.consume()
+    }
 
-            // REQUISITO: Cuando la pelota está disparada, no mostrar cursor de interacción sobre la diana
-            if (!canMoveTarget()) return@addEventHandler
-
-            val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-
-            // Si el cursor está sobre el proyectil (que está adelante), no cambiar cursor a target
-            val distToProjectile = Math.hypot(local.x - state.projectileX, local.y - state.projectileY)
-            if (distToProjectile <= projectileHitRadius) {
-                return@addEventHandler
-            }
-
-            val dx = local.x - state.targetX
-            val dy = local.y - cfg.groundY
-            val dist = Math.sqrt(dx * dx + dy * dy)
-
-            if (dist <= hitRadius) {
-                canvas.cursor = Cursor.HAND
-            }
+    private fun onMoved(event: MouseEvent) {
+        if (event.isConsumed || isDragging || state.isAnimating) return
+        val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
+        if (isSelectableAt(local)) {
+            canvas.cursor = Cursor.HAND
         }
     }
+}
+
+/**
+ * Orquestador de renderizado y manipulación horizontal del objetivo (SRP + DIP).
+ */
+class TargetRenderer(
+    gc: GraphicsContext,
+    cfg: SceneConfig,
+    canvas: Canvas,
+    private val state: SimulationState,
+    onTargetPositionChanged: (Double) -> Unit,
+    onRepaint: () -> Unit,
+    randomizer: ITargetRandomizer = UniformTargetRandomizer()
+) : ITargetRenderer {
+    override val targetRadius: Double = 20.0
+    private val defaultRandomizer: ITargetRandomizer = randomizer
+
+    private val painter = TargetCanvasPainter(gc, cfg, targetRadius)
+    private val dragInteraction = TargetDragInteraction(canvas, cfg, state, onTargetPositionChanged, onRepaint)
+    private val pulseController = TargetPulseController(state, onRepaint)
+
+    init {
+        state.targetRadius = targetRadius
+    }
+
+    override fun drawTarget(x: Double) {
+        val isHit = state.lastCollisionResult?.status == CollisionStatus.HIT
+        painter.draw(x, TargetVisualFlags(state.isAnimating, isHit, dragInteraction.isDragging))
+    }
+
+    override fun startPulse() = pulseController.start()
+
+    override fun stopPulse() = pulseController.stop()
+
+    override fun canMoveTarget(): Boolean = !state.isAnimating
+
+    override fun cancelDrag() = dragInteraction.cancel()
+
+    override fun getValidXRange(): ClosedFloatingPointRange<Double> =
+        dragInteraction.validXRange(targetRadius)
+
+    override fun randomizePosition(targetRandomizer: ITargetRandomizer): Boolean {
+        if (!canMoveTarget()) return false
+        val range = getValidXRange()
+        val chosen = if (targetRandomizer === defaultRandomizer) defaultRandomizer else targetRandomizer
+        dragInteraction.applyTargetX(chosen.calculateRandomX(range.start, range.endInclusive))
+        return true
+    }
+
+    override fun installDrag() = dragInteraction.install(targetRadius)
 }

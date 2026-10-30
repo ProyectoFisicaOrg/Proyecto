@@ -1,10 +1,9 @@
 package org.example.model
 
+import kotlin.math.abs
+
 /**
- * Objetivo circular desplazable sobre el suelo.
- *
- * Responsabilidad Única (SRP): valor inmutable que representa el objetivo.
- * Encapsula el cálculo de sus bordes y centro a partir del centro y el radio.
+ * Objetivo circular desplazable sobre el suelo (SRP + Encapsulación).
  *
  * @param centerX Posición X del centro del objetivo en el suelo (metros)
  * @param radius Radio del objetivo (metros)
@@ -18,11 +17,21 @@ data class Target(
     }
 
     /** Borde izquierdo del objetivo */
-    val left: Double get() = centerX - radius
+    fun left(): Double = centerX - radius
 
     /** Borde derecho del objetivo */
-    val right: Double get() = centerX + radius
+    fun right(): Double = centerX + radius
 
     /** Diámetro del objetivo */
-    val diameter: Double get() = 2 * radius
+    fun diameter(): Double = 2.0 * radius
+
+    /** Determina si una coordenada horizontal x cae dentro del objetivo. */
+    fun contains(x: Double): Boolean = x in left()..right()
+
+    /** Calcula la distancia horizontal absoluta desde una coordenada x al centro del objetivo. */
+    fun distanceToCenter(x: Double): Double = abs(x - centerX)
+
+    /** Determina si un punto de impacto impacta en el blanco dentro de una tolerancia. */
+    fun isHit(impactX: Double, tolerance: Double = 0.0): Boolean =
+        distanceToCenter(impactX) <= (radius + tolerance)
 }
