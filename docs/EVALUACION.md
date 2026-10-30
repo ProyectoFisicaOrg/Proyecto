@@ -3,20 +3,20 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación II (RepoSense + análisis de calidad POO/SOLID). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-10-19.
+> Generado: 2026-10-29.
 
 ## 1. Veredicto
 
 | Aspecto | Resultado |
 |---|---|
 | Índice de calidad POO/SOLID | **2/100** |
-| Código (LOC) | 4,008 |
-| Archivos de código | 34 |
-| Clases (bien usadas) | 59 (9 OK) |
-| Código dentro de clases (%POO) | 102% |
+| Código (LOC) | 5,402 |
+| Archivos de código | 44 |
+| Clases (bien usadas) | 75 (13 OK) |
+| Código dentro de clases (%POO) | 95% |
 | Funciones fuera de clases | 18 |
-| Duplicación lógica | 0.7% |
-| Señales S/O/L/I/D | 40/0/1/0/20 |
+| Duplicación lógica | 1.6% |
+| Señales S/O/L/I/D | 51/0/1/0/25 |
 | Tope duro aplicado | `SUELTAS>=10` → índice ≤ 20 |
 
 > Este informe **describe** lo que el análisis midió con los criterios ya establecidos de la materia. No es una nota.
@@ -34,18 +34,18 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
-| Código dentro de clases (%POO) | ≥ 85% | 102% | sí |
-| Duplicación lógica | ≤ 10% | 0.7% | sí |
+| Código dentro de clases (%POO) | ≥ 85% | 95% | sí |
+| Duplicación lógica | ≤ 10% | 1.6% | sí |
 | Funciones fuera de clases | ≤ 1 | 18 | no |
-| Señales POO/SOLID críticas | ninguna | Clase demasiado grande (SRP), Acoplamiento alto (CBO), Override vacío / 'no implementado' (LSP) | no |
+| Señales POO/SOLID críticas | ninguna | Clase demasiado grande (SRP), Complejidad alta, Acoplamiento alto (CBO), Override vacío / 'no implementado' (LSP) | no |
 
 **Criterios para destacar**
 
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
-| Código dentro de clases (%POO) | ≥ 95% | 102% | sí |
-| Duplicación lógica | ≤ 5% | 0.7% | sí |
-| Funciones fuera de clases | ≤ 0 | 18 | no |
+| Código dentro de clases (%POO) | ≥ 95% | 95% | no |
+| Duplicación lógica | ≤ 5% | 1.6% | sí |
+| Funciones fuera de clases | ≤ 1 | 18 | no |
 | Señales POO/SOLID críticas | ninguna | Clase demasiado grande (SRP), Complejidad alta, Acoplamiento alto (CBO), Override vacío / 'no implementado' (LSP) | no |
 | Índice de calidad POO/SOLID | ≥ 60 | 2/100 | no |
 
@@ -53,12 +53,12 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 
 | Autor | Commits | Código (LOC) | Tests (LOC) | Docs (LOC) | Días activos | % del código |
 |---|---:|---:|---:|---:|---:|---:|
-| matteocatania | 3 | 2,264 | 452 | 1 | 4 | 63% |
-| Agustin Marañon | 6 | 1,334 | 642 | 1 | 7 | 37% |
+| matteocatania | 5 | 3,356 | 973 | 1 | 5 | 72% |
+| Agustin Marañon | 6 | 1,333 | 642 | 1 | 7 | 28% |
 
 > _El LOC de autoría lo calcula RepoSense sobre el historial y puede diferir del LOC de código del análisis de calidad (que mira solo el estado de `main`)._
 
-> **Reparto del trabajo:** matteocatania concentra el 63% de las líneas de código. Un reparto muy desigual suele indicar que la integración no fue realmente en equipo; vale la pena reconstruir cómo se coordinó.
+> **Reparto del trabajo:** matteocatania concentra el 72% de las líneas de código. Un reparto muy desigual suele indicar que la integración no fue realmente en equipo; vale la pena reconstruir cómo se coordinó.
 
 ## 3. Aspectos evaluados
 
@@ -70,17 +70,21 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 - **Por qué importa:** Ordena y prioriza la revisión: un índice bajo indica varias señales que conviene mirar juntas.
 - **Tu resultado:** índice **2/100**
 
-### 2. Duplicación lógica (DRY) (duplicacion) — sin señales
+### 2. Duplicación lógica (DRY) (duplicacion) — con señales
 
 - **Qué mide:** Porcentaje de bloques de LÓGICA repetidos. Quedan fuera imports/includes, anotaciones, declaraciones de campos y comentarios/Javadoc/docstrings: esos bloques son boilerplate, no lógica.
 - **Por qué importa:** Cada copia de lógica se mantiene por separado: un arreglo hay que repetirlo y los defectos se multiplican.
-- **Tu resultado:** **0.7%** de duplicación lógica
+- **Tu resultado:** **1.6%** de duplicación lógica
+- **Para investigar la causa:**
+    - ¿El trabajo se repartió por pantallas o archivos y se integró copiando y pegando bloques?
+    - ¿Qué zonas del sistema cambiaron juntas más de una vez (señal de lógica compartida)?
+    - ¿Hubo un lugar común acordado para la lógica repetida antes de empezar, o cada integrante resolvió lo suyo?
 
 ### 3. Adopción de POO (% de código en clases) (poo) — sin señales
 
 - **Qué mide:** Qué porción del código vive dentro de clases (no de funciones sueltas).
 - **Por qué importa:** El diseño orientado a objetos es el eje de la materia: el comportamiento debería vivir como método de una clase.
-- **Tu resultado:** **102.2%** del código dentro de clases
+- **Tu resultado:** **94.6%** del código dentro de clases
 
 ### 4. Funciones fuera de clases (sueltas) — con señales
 
@@ -96,7 +100,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Clases con muchas líneas, métodos o campos a la vez.
 - **Por qué importa:** Una clase que hace de todo cambia por muchos motivos y cuesta entenderla y probarla.
-- **Tu resultado:** **20** clase(s) demasiado grande(s)
+- **Tu resultado:** **25** clase(s) demasiado grande(s)
 - **Para investigar la causa:**
     - ¿La clase creció por acumulación de responsabilidades?
     - ¿Qué partes de la clase se usan siempre juntas y cuáles no?
@@ -112,7 +116,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Complejidad ciclomática: cantidad de caminos posibles dentro de un método o función (condicionales, bucles, casos).
 - **Por qué importa:** Muchos caminos = difícil de seguir y de probar; suelen esconderse casos sin cubrir.
-- **Tu resultado:** **18** método(s)/función(es) con complejidad alta
+- **Tu resultado:** **25** método(s)/función(es) con complejidad alta
 - **Para investigar la causa:**
     - ¿Se agregaron condiciones a medida que aparecían casos nuevos?
     - ¿Se probaron todos los caminos o solo el caso principal?
@@ -122,7 +126,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Tamaño de los métodos/funciones y cantidad de parámetros.
 - **Por qué importa:** Una función que hace varias cosas cuesta leerla, nombrarla y reutilizarla.
-- **Tu resultado:** **25** método(s)/función(es) largos o con muchos parámetros
+- **Tu resultado:** **31** método(s)/función(es) largos o con muchos parámetros
 - **Para investigar la causa:**
     - ¿La función creció por acumulación de pasos?
     - ¿Agrupa operaciones que podrían describirse por separado?
@@ -132,7 +136,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Cuánto depende una clase de otros tipos del proyecto.
 - **Por qué importa:** Piezas muy enlazadas hacen que un cambio se propague y que sea difícil reemplazar partes.
-- **Tu resultado:** **26** clase(s) muy acoplada(s)
+- **Tu resultado:** **32** clase(s) muy acoplada(s)
 - **Para investigar la causa:**
     - ¿La clase conoce detalles internos de muchas otras?
     - ¿Se puede cambiar una parte sin tocar las demás?
@@ -170,7 +174,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Instanciación directa de clases concretas y ausencia de interfaces o clases abstractas pese al acoplamiento.
 - **Por qué importa:** Depender de implementaciones concretas dificulta cambiar o probar una parte sin arrastrar las demás.
-- **Tu resultado:** **20** dependencia(s) de concretos sin abstracciones
+- **Tu resultado:** **25** dependencia(s) de concretos sin abstracciones
 - **Para investigar la causa:**
     - ¿La clase crea por dentro a sus colaboradores en vez de recibirlos?
     - ¿Hay puntos de variación que convendría expresar como abstracción?
@@ -180,7 +184,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Clases que solo acumulan campos y no tienen comportamiento.
 - **Por qué importa:** Separar datos de comportamiento reparte por el proyecto la lógica que debería estar cerca de esos datos.
-- **Tu resultado:** **11** clase(s) sin métodos (solo datos)
+- **Tu resultado:** **14** clase(s) sin métodos (solo datos)
 - **Para investigar la causa:**
     - ¿Dónde vive el comportamiento que opera sobre esos datos?
     - ¿La clase representa un concepto del dominio o un contenedor técnico?
@@ -190,7 +194,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Clases que exponen campos sin control de acceso.
 - **Por qué importa:** Expone el estado interno y hace que cualquier cambio dependa de quién lo modifica desde afuera.
-- **Tu resultado:** **22** clase(s) con campos públicos
+- **Tu resultado:** **30** clase(s) con campos públicos
 - **Para investigar la causa:**
     - ¿Se accede al campo desde otras clases para evitar un método?
     - ¿Qué reglas deberían respetarse al modificar ese estado?
@@ -206,7 +210,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 Archivos donde el análisis encontró cada señal (sin número de línea, a propósito):
 
-**Clase demasiado grande (SRP) (god)** — 13 archivo(s):
+**Clase demasiado grande (SRP) (god)** — 18 archivo(s):
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`
 - `app/src/main/kotlin/org/example/model/SimulationState.kt`
@@ -215,22 +219,29 @@ Archivos donde el análisis encontró cada señal (sin número de línea, a prop
 - `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/Scenery.kt`
 - `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TooltipRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TrajectoryModels.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousState.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectoryInterpolator.kt`
 - `app/src/test/kotlin/org/example/FlightAnimationAndTargetTest.kt`
+- `app/src/test/kotlin/org/example/ScrubbingAndHudTest.kt`
+- `app/src/test/kotlin/org/example/TargetRandomizerAndImmobilityTest.kt`
 - `app/src/test/kotlin/org/example/TrajectoryMatrixTest.kt`
 - `app/src/test/kotlin/org/example/telemetry/InstantaneousStateApiTest.kt`
 
-**Complejidad alta (complejidad)** — 7 archivo(s):
+**Complejidad alta (complejidad)** — 9 archivo(s):
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`
 - `app/src/main/kotlin/org/example/rendering/CannonRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/PathRenderer.kt`
+- `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
 - `app/src/main/kotlin/org/example/telemetry/TrajectoryNearestNeighborSearcher.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectorySearcher.kt`
 
-**Métodos/funciones largos o con muchos parámetros (tamano)** — 12 archivo(s):
+**Métodos/funciones largos o con muchos parámetros (tamano)** — 15 archivo(s):
 - `app/src/main/kotlin/org/example/CannonSimulation.kt`
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`
@@ -238,13 +249,16 @@ Archivos donde el análisis encontró cada señal (sin número de línea, a prop
 - `app/src/main/kotlin/org/example/rendering/CannonRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/PathRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/ProjectileRenderer.kt`
+- `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ResultsHUD.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousStateApi.kt`
 - `app/src/main/kotlin/org/example/telemetry/TrajectoryNearestNeighborSearcher.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectorySearcher.kt`
 - `app/src/main/kotlin/org/example/ui/ControlPanel.kt`
 
-**Acoplamiento alto (CBO) (acoplamiento)** — 19 archivo(s):
+**Acoplamiento alto (CBO) (acoplamiento)** — 25 archivo(s):
 - `app/src/main/kotlin/org/example/CannonSimulation.kt`
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`
@@ -257,18 +271,24 @@ Archivos donde el análisis encontró cada señal (sin número de línea, a prop
 - `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/Scenery.kt`
 - `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/InteractiveProjectileRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ResultsHUD.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TooltipRenderer.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousState.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousStateApi.kt`
 - `app/src/main/kotlin/org/example/telemetry/TelemetryFactory.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectoryMatrixGenerator.kt`
 - `app/src/test/kotlin/org/example/FlightAnimationAndTargetTest.kt`
+- `app/src/test/kotlin/org/example/ScrubbingAndHudTest.kt`
+- `app/src/test/kotlin/org/example/TargetRandomizerAndImmobilityTest.kt`
 - `app/src/test/kotlin/org/example/TrajectoryMatrixTest.kt`
 - `app/src/test/kotlin/org/example/telemetry/InstantaneousStateApiTest.kt`
 
 **Override vacío o 'no implementado' (LSP) (lsp)** — 1 archivo(s):
-- `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
+- `app/src/main/kotlin/org/example/CannonSimulation.kt`
 
-**Dependencia de concretos y falta de abstracciones (DIP) (dip)** — 13 archivo(s):
+**Dependencia de concretos y falta de abstracciones (DIP) (dip)** — 18 archivo(s):
 - `app/src/main/kotlin/org/example/CannonSimulation.kt`
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`
@@ -277,25 +297,32 @@ Archivos donde el análisis encontró cada señal (sin número de línea, a prop
 - `app/src/main/kotlin/org/example/rendering/PathRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/Scenery.kt`
+- `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TooltipRenderer.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousState.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectoryMatrixGenerator.kt`
 - `app/src/test/kotlin/org/example/FlightAnimationAndTargetTest.kt`
+- `app/src/test/kotlin/org/example/ScrubbingAndHudTest.kt`
+- `app/src/test/kotlin/org/example/TargetRandomizerAndImmobilityTest.kt`
 - `app/src/test/kotlin/org/example/TrajectoryMatrixTest.kt`
 - `app/src/test/kotlin/org/example/telemetry/InstantaneousStateApiTest.kt`
 
-**Clase sin métodos (solo datos) (data)** — 10 archivo(s):
+**Clase sin métodos (solo datos) (data)** — 12 archivo(s):
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`
 - `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`
 - `app/src/main/kotlin/org/example/model/SimulationState.kt`
 - `app/src/main/kotlin/org/example/model/Target.kt`
 - `app/src/main/kotlin/org/example/rendering/SceneConfig.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TooltipRenderer.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectoryInterpolator.kt`
 - `app/src/main/kotlin/org/example/ui/ControlPanel.kt`
 - `app/src/test/kotlin/org/example/FlightAnimationAndTargetTest.kt`
+- `app/src/test/kotlin/org/example/TargetRandomizerAndImmobilityTest.kt`
 - `app/src/test/kotlin/org/example/telemetry/InstantaneousStateApiTest.kt`
 
-**Campos públicos (encapsulación) (encapsulacion)** — 13 archivo(s):
+**Campos públicos (encapsulación) (encapsulacion)** — 20 archivo(s):
 - `app/src/main/kotlin/org/example/Physics.kt`
 - `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`
 - `app/src/main/kotlin/org/example/model/SimulationState.kt`
@@ -303,23 +330,30 @@ Archivos donde el análisis encontró cada señal (sin número de línea, a prop
 - `app/src/main/kotlin/org/example/model/TrajectoryMatrix.kt`
 - `app/src/main/kotlin/org/example/rendering/PathRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/SceneConfig.kt`
+- `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`
 - `app/src/main/kotlin/org/example/rendering/Scenery.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ResultsHUD.kt`
+- `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TooltipRenderer.kt`
+- `app/src/main/kotlin/org/example/scrubbing/TrajectoryModels.kt`
 - `app/src/main/kotlin/org/example/telemetry/InstantaneousState.kt`
 - `app/src/main/kotlin/org/example/trajectory/TrajectoryInterpolator.kt`
 - `app/src/test/kotlin/org/example/FlightAnimationAndTargetTest.kt`
+- `app/src/test/kotlin/org/example/ScrubbingAndHudTest.kt`
+- `app/src/test/kotlin/org/example/TargetRandomizerAndImmobilityTest.kt`
 - `app/src/test/kotlin/org/example/TrajectoryMatrixTest.kt`
 - `app/src/test/kotlin/org/example/telemetry/InstantaneousStateApiTest.kt`
 
 ## 5. Evolución por commit
 
-Métricas calculadas sobre el estado de `main` en **cada commit** (8 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
+Métricas calculadas sobre el estado de `main` en **cada commit** (9 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
 
 ```mermaid
 xychart-beta
     title "Índice POO/SOLID a lo largo de los commits"
-    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb"]
+    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb", "8ff3ccd"]
     y-axis "Índice" 0 --> 100
-    line [0, 38, 38, 6, 4, 3, 3, 2]
+    line [0, 38, 38, 6, 4, 3, 3, 2, 2]
 ```
 
 | # | Fecha | Commit | Autor | LOC | Índice | %POO | Duplic. | Sueltas |
@@ -332,6 +366,7 @@ xychart-beta
 | 6 | 2026-09-25 | `adee280` | Agustin Marañon | 2,246 | 3 | 86% | 0.0% | 1 |
 | 7 | 2026-10-05 | `2f04017` | Agustin Marañon | 2,893 | 3 | 84% | 0.0% | 1 |
 | 8 | 2026-10-16 | `b92aafb` | matteocatania | 4,008 | 2 | 102% | 0.7% | 18 |
+| 9 | 2026-10-19 | `8ff3ccd` | matteocatania | 5,402 | 2 | 95% | 1.6% | 18 |
 
 ---
 _Informe generado por la cátedra. Los criterios y umbrales de medición corresponden al perfil `exigente` de `calidad.py`; el semáforo de aprobación, a `CRITERIOS-CALIDAD.md` (ver `README.md`). Ante dudas, revisá el archivo señalado._
