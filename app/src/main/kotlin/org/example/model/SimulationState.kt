@@ -1,163 +1,154 @@
 package org.example.model
 
+import org.example.IPhysicsParams
 import org.example.PhysicsParams
-import org.example.collision.CollisionResult
+import org.example.collision.ICollisionResult
 
 /**
- * Contrato de parámetros cinemáticos iniciales del lanzamiento (ISP + DIP).
+ * Instantánea inmutable de estado de diana e impacto para cohesión interna (SRP).
  */
-interface ILaunchKinematics {
-    fun currentAngle(): Double
-    fun updateAngle(value: Double)
-    fun currentVelocity(): Double
-    fun updateVelocity(value: Double)
+private data class TargetCollisionSnapshot(
+    private val posX: Double,
+    private val rad: Double,
+    private val collision: ICollisionResult?
+) {
+    fun x(): Double {
+        return posX
+    }
 
-    var angle: Double
-        get() = currentAngle()
-        set(value) = updateAngle(value)
+    fun radius(): Double {
+        return rad
+    }
 
-    var velocity: Double
-        get() = currentVelocity()
-        set(value) = updateVelocity(value)
+    fun result(): ICollisionResult? {
+        return collision
+    }
+
+    fun withX(newX: Double): TargetCollisionSnapshot {
+        return TargetCollisionSnapshot(newX, rad, collision)
+    }
+
+    fun withRadius(newRad: Double): TargetCollisionSnapshot {
+        return TargetCollisionSnapshot(posX, newRad, collision)
+    }
+
+    fun withCollision(newRes: ICollisionResult?): TargetCollisionSnapshot {
+        return TargetCollisionSnapshot(posX, rad, newRes)
+    }
 }
 
 /**
- * Contrato de parámetros físicos ambientales y de masa (ISP + DIP).
+ * Instantánea inmutable de movimiento del proyectil en vuelo (SRP).
  */
-interface IEnvironmentParameters {
-    fun currentGravity(): Double
-    fun updateGravity(value: Double)
-    fun currentMass(): Double
-    fun updateMass(value: Double)
+private data class FlightMotionSnapshot(
+    private val active: Boolean,
+    private val startNano: Long,
+    private val coords: Pair<Double, Double>
+) {
+    fun isAnimating(): Boolean {
+        return active
+    }
 
-    var gravity: Double
-        get() = currentGravity()
-        set(value) = updateGravity(value)
+    fun startTime(): Long {
+        return startNano
+    }
 
-    var mass: Double
-        get() = currentMass()
-        set(value) = updateMass(value)
+    fun position(): Pair<Double, Double> {
+        return coords
+    }
+
+    fun withAnimating(flag: Boolean): FlightMotionSnapshot {
+        return FlightMotionSnapshot(flag, startNano, coords)
+    }
+
+    fun withStartTime(nano: Long): FlightMotionSnapshot {
+        return FlightMotionSnapshot(active, nano, coords)
+    }
+
+    fun withPosition(x: Double, y: Double): FlightMotionSnapshot {
+        return FlightMotionSnapshot(active, startNano, Pair(x, y))
+    }
 }
 
 /**
- * Estado base encapsulado de los parámetros configurables del lanzamiento (SRP + Encapsulación).
+ * Estado base encapsulado y cohesivo de los parámetros configurables del lanzamiento (SRP + Encapsulación).
  */
-open class LaunchParametersState : ILaunchKinematics, IEnvironmentParameters {
-    private var angleDeg: Double = 45.0
-    private var initialVel: Double = 50.0
-    private var gravityAcc: Double = 9.8
-    private var projectileMass: Double = 10.0
+open class LaunchParametersState(
+    initialParams: PhysicsParams = PhysicsParams(45.0, 50.0, 9.8, 10.0)
+) : ILaunchKinematics, IEnvironmentParameters {
+    private var params: PhysicsParams = initialParams
 
-    override fun currentAngle(): Double = angleDeg
+    override fun currentAngle(): Double {
+        return params.angleDeg
+    }
 
     override fun updateAngle(value: Double) {
         require(value in 0.0..90.0) { "El ángulo debe estar entre 0° y 90°" }
-        angleDeg = value
+        params = params.copy(angleDeg = value)
     }
 
-    override fun currentVelocity(): Double = initialVel
+    override fun currentVelocity(): Double {
+        return params.initialVelocity
+    }
 
     override fun updateVelocity(value: Double) {
         require(value >= 0.0) { "La velocidad no puede ser negativa" }
-        initialVel = value
+        params = params.copy(initialVelocity = value)
     }
 
-    override fun currentGravity(): Double = gravityAcc
+    override fun currentGravity(): Double {
+        return params.gravity
+    }
 
     override fun updateGravity(value: Double) {
         require(value > 0.0) { "La gravedad debe ser mayor a cero" }
-        gravityAcc = value
+        params = params.copy(gravity = value)
     }
 
-    override fun currentMass(): Double = projectileMass
+    override fun currentMass(): Double {
+        return params.mass
+    }
 
     override fun updateMass(value: Double) {
         require(value > 0.0) { "La masa debe ser mayor a cero" }
-        projectileMass = value
+        params = params.copy(mass = value)
     }
 
-    fun toPhysicsParams(): PhysicsParams =
-        PhysicsParams(angleDeg = angleDeg, initialVelocity = initialVel, gravity = gravityAcc, mass = projectileMass)
+    override fun toPhysicsParams(): IPhysicsParams {
+        return params
+    }
 }
 
 /**
- * Contrato de estado del objetivo y resultado de impacto (ISP + DIP).
- */
-interface ITargetAndCollisionState {
-    fun currentTargetX(): Double
-    fun changeTargetX(value: Double)
-    fun currentTargetRadius(): Double
-    fun changeTargetRadius(value: Double)
-    fun currentCollisionResult(): CollisionResult?
-    fun changeCollisionResult(result: CollisionResult?)
-
-    var targetX: Double
-        get() = currentTargetX()
-        set(value) = changeTargetX(value)
-
-    var targetRadius: Double
-        get() = currentTargetRadius()
-        set(value) = changeTargetRadius(value)
-
-    var lastCollisionResult: CollisionResult?
-        get() = currentCollisionResult()
-        set(value) = changeCollisionResult(value)
-}
-
-/**
- * Implementación encapsulada del estado de la diana y colisiones (SRP + Encapsulación).
+ * Implementación encapsulada y cohesiva del estado de la diana y colisiones (SRP + Encapsulación).
  */
 class TargetAndCollisionState : ITargetAndCollisionState {
-    private var targetPosX: Double = 750.0
-    private var targetRad: Double = 20.0
-    private var collisionRes: CollisionResult? = null
+    private var snapshot: TargetCollisionSnapshot = TargetCollisionSnapshot(750.0, 20.0, null)
 
-    override fun currentTargetX(): Double = targetPosX
-
-    override fun changeTargetX(value: Double) {
-        targetPosX = value
+    override fun currentTargetX(): Double {
+        return snapshot.x()
     }
 
-    override fun currentTargetRadius(): Double = targetRad
+    override fun changeTargetX(value: Double) {
+        snapshot = snapshot.withX(value)
+    }
+
+    override fun currentTargetRadius(): Double {
+        return snapshot.radius()
+    }
 
     override fun changeTargetRadius(value: Double) {
         require(value > 0.0) { "El radio de la diana debe ser positivo" }
-        targetRad = value
+        snapshot = snapshot.withRadius(value)
     }
 
-    override fun currentCollisionResult(): CollisionResult? = collisionRes
-
-    override fun changeCollisionResult(result: CollisionResult?) {
-        collisionRes = result
+    override fun currentCollisionResult(): ICollisionResult? {
+        return snapshot.result()
     }
-}
 
-/**
- * Contrato de movimiento y animación del proyectil en el canvas (ISP + DIP).
- */
-interface IFlightMotionState {
-    fun checkAnimating(): Boolean
-    fun changeAnimating(active: Boolean)
-    fun flightStartTimeNano(): Long
-    fun changeFlightStartTimeNano(nano: Long)
-    fun currentProjectileCoords(): Pair<Double, Double>
-    fun updateProjectilePosition(x: Double, y: Double)
-
-    var isAnimating: Boolean
-        get() = checkAnimating()
-        set(value) = changeAnimating(value)
-
-    var animationStartTime: Long
-        get() = flightStartTimeNano()
-        set(value) = changeFlightStartTimeNano(value)
-
-    var projectileX: Double
-        get() = currentProjectileCoords().first
-        set(value) = updateProjectilePosition(value, currentProjectileCoords().second)
-
-    var projectileY: Double
-        get() = currentProjectileCoords().second
-        set(value) = updateProjectilePosition(currentProjectileCoords().first, value)
+    override fun changeCollisionResult(result: ICollisionResult?) {
+        snapshot = snapshot.withCollision(result)
+    }
 }
 
 /**
@@ -165,48 +156,46 @@ interface IFlightMotionState {
  */
 class SimulationState(
     private val targetState: ITargetAndCollisionState = TargetAndCollisionState()
-) : LaunchParametersState(), IFlightMotionState, ITargetAndCollisionState by targetState {
-    private var animating: Boolean = false
-    private var startTimeNano: Long = 0L
-    private var projX: Double = 90.0
-    private var projY: Double = 470.0
+) : LaunchParametersState(), ISimulationState, ITargetAndCollisionState by targetState {
+    private var flight: FlightMotionSnapshot = FlightMotionSnapshot(false, 0L, Pair(90.0, 470.0))
 
-    override fun checkAnimating(): Boolean = animating
+    override fun checkAnimating(): Boolean {
+        return flight.isAnimating()
+    }
 
     override fun changeAnimating(active: Boolean) {
-        animating = active
+        flight = flight.withAnimating(active)
     }
 
-    override fun flightStartTimeNano(): Long = startTimeNano
+    override fun flightStartTimeNano(): Long {
+        return flight.startTime()
+    }
 
     override fun changeFlightStartTimeNano(nano: Long) {
-        startTimeNano = nano
+        flight = flight.withStartTime(nano)
     }
 
-    override fun currentProjectileCoords(): Pair<Double, Double> = Pair(projX, projY)
+    override fun currentProjectileCoords(): Pair<Double, Double> {
+        return flight.position()
+    }
 
     override fun updateProjectilePosition(x: Double, y: Double) {
-        projX = x
-        projY = y
+        flight = flight.withPosition(x, y)
     }
 
-    fun resetProjectile(baseX: Double, baseY: Double) {
-        projX = baseX
-        projY = baseY
-        animating = false
-        startTimeNano = 0L
+    override fun resetProjectile(baseX: Double, baseY: Double) {
+        flight = FlightMotionSnapshot(false, 0L, Pair(baseX, baseY))
     }
 
-    fun startFlight(nowNano: Long = System.nanoTime()) {
-        animating = true
-        startTimeNano = nowNano
+    override fun startFlight(nowNano: Long) {
+        flight = flight.withAnimating(true).withStartTime(nowNano)
     }
 
-    fun stopFlight() {
-        animating = false
+    override fun stopFlight() {
+        flight = flight.withAnimating(false)
     }
 
-    fun clearCollisionResult() {
-        changeCollisionResult(null)
+    override fun clearCollisionResult() {
+        targetState.changeCollisionResult(null)
     }
 }

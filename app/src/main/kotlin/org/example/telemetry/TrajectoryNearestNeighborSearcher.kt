@@ -1,140 +1,66 @@
 package org.example.telemetry
 
-import org.example.Position
-import org.example.TrajectoryPoint
 import kotlin.math.abs
+import org.example.ITrajectoryPoint
 
 /**
- * Abstracción para el algoritmo de búsqueda de vecino más cercano (Nearest Neighbor).
- *
- * Principio de Responsabilidad Única (SRP): localizar el punto de la trayectoria más próximo
- * a una coordenada dada.
- * Principio de Segregación de Interfaces (ISP): métodos precisos para consultas 2D y 1D sin
- * acoplar detalles de presentación ni lógica de negocio externa.
- * Principio Abierto/Cerrado (OCP): extensible con nuevas estrategias de búsqueda (KD-Tree,
- * búsqueda espacial, interpolación continua) sin alterar a los consumidores.
- */
-interface TrajectoryNearestNeighborSearcher {
-
-    /**
-     * Encuentra el punto más cercano a una coordenada 2D (x, y) según la distancia geométrica.
-     *
-     * @param points Lista de puntos de la trayectoria (no vacía).
-     * @param x Coordenada X buscada.
-     * @param y Coordenada Y buscada.
-     * @return El [TrajectoryPoint] más cercano.
-     */
-    fun findNearest(points: List<TrajectoryPoint>, x: Double, y: Double): TrajectoryPoint
-
-    /**
-     * Sobrecarga para buscar a partir de un objeto [Position].
-     *
-     * @param points Lista de puntos de la trayectoria.
-     * @param position Coordenada empaquetada como [Position].
-     * @return El [TrajectoryPoint] más cercano.
-     */
-    fun findNearest(points: List<TrajectoryPoint>, position: Position): TrajectoryPoint =
-        findNearest(points, position.x, position.y)
-
-    /**
-     * Encuentra el punto más cercano a una coordenada horizontal X (proyección sobre la curva).
-     *
-     * @param points Lista de puntos de la trayectoria (no vacía, ordenados cronológicamente por x).
-     * @param targetX Coordenada horizontal X buscada.
-     * @return El [TrajectoryPoint] con coordenada x más cercana.
-     */
-    fun findNearestByX(points: List<TrajectoryPoint>, targetX: Double): TrajectoryPoint
-
-    /**
-     * Encuentra el índice del punto más cercano a una coordenada 2D (x, y).
-     *
-     * @param points Lista de puntos de la trayectoria (no vacía).
-     * @param x Coordenada X buscada.
-     * @param y Coordenada Y buscada.
-     * @return Índice del punto más cercano en la lista.
-     */
-    fun findNearestIndex(points: List<TrajectoryPoint>, x: Double, y: Double): Int
-
-    /**
-     * Encuentra el índice del punto con coordenada X más cercana.
-     *
-     * @param points Lista de puntos de la trayectoria (no vacía, ordenados cronológicamente por x).
-     * @param targetX Coordenada horizontal X buscada.
-     * @return Índice del punto más cercano en la lista.
-     */
-    fun findNearestIndexByX(points: List<TrajectoryPoint>, targetX: Double): Int
-}
-
-/**
- * Implementación de Nearest Neighbor basada en distancia euclidiana 2D y búsqueda binaria en 1D.
- *
- * Responsabilidad Única (SRP): ejecutar el algoritmo de minimización de distancia euclidiana cuadrática
- * y búsqueda binaria O(log n) en 1D.
- * Principio de Sustitución de Liskov (LSP): cumple estrictamente el contrato de [TrajectoryNearestNeighborSearcher].
+ * Implementación de Nearest Neighbor basada en distancia euclidiana 2D y búsqueda binaria en 1D (SRP + LSP).
  */
 class EuclideanNearestNeighborSearcher : TrajectoryNearestNeighborSearcher {
 
-    override fun findNearest(points: List<TrajectoryPoint>, x: Double, y: Double): TrajectoryPoint {
-        val index = findNearestIndex(points, x, y)
-        return points[index]
+    override fun findNearest(points: List<ITrajectoryPoint>, x: Double, y: Double): ITrajectoryPoint {
+        return points[findNearestIndex(points, x, y)]
     }
 
-    override fun findNearestIndex(points: List<TrajectoryPoint>, x: Double, y: Double): Int {
+    override fun findNearestIndex(points: List<ITrajectoryPoint>, x: Double, y: Double): Int {
         require(points.isNotEmpty()) { "La lista de puntos no puede estar vacía" }
         if (points.size == 1) return 0
         return findLinearNearest2D(points, x, y)
     }
 
-    override fun findNearestByX(points: List<TrajectoryPoint>, targetX: Double): TrajectoryPoint {
-        val index = findNearestIndexByX(points, targetX)
-        return points[index]
+    override fun findNearestByX(points: List<ITrajectoryPoint>, targetX: Double): ITrajectoryPoint {
+        return points[findNearestIndexByX(points, targetX)]
     }
 
-    override fun findNearestIndexByX(points: List<TrajectoryPoint>, targetX: Double): Int {
+    override fun findNearestIndexByX(points: List<ITrajectoryPoint>, targetX: Double): Int {
         require(points.isNotEmpty()) { "La lista de puntos no puede estar vacía" }
-        if (points.size == 1) return 0
         if (targetX <= points.first().x) return 0
         if (targetX >= points.last().x) return points.size - 1
-        return binarySearchClosestX(points, targetX)
+        val lowerIdx = lowerBoundByX(points, targetX)
+        return pickCloserNeighbor(points, lowerIdx, targetX)
     }
 
-    private fun findLinearNearest2D(points: List<TrajectoryPoint>, x: Double, y: Double): Int {
+    private fun findLinearNearest2D(points: List<ITrajectoryPoint>, x: Double, y: Double): Int {
         var bestIndex = 0
         var minDistanceSq = Double.MAX_VALUE
-
         for (i in points.indices) {
             val distSq = distanceSquared(points[i], x, y)
             if (distSq < minDistanceSq) {
                 minDistanceSq = distSq
                 bestIndex = i
-                if (distSq < 1e-14) break
             }
         }
         return bestIndex
     }
 
-    private fun binarySearchClosestX(points: List<TrajectoryPoint>, targetX: Double): Int {
+    private fun lowerBoundByX(points: List<ITrajectoryPoint>, targetX: Double): Int {
         var low = 0
         var high = points.size - 1
-
-        while (low <= high) {
+        while (low < high) {
             val mid = (low + high) ushr 1
-            val midVal = points[mid].x
-            when {
-                midVal < targetX -> low = mid + 1
-                midVal > targetX -> high = mid - 1
-                else -> return mid
-            }
+            if (points[mid].x < targetX) low = mid + 1 else high = mid
         }
-
-        val candidate1 = high.coerceIn(0, points.size - 1)
-        val candidate2 = low.coerceIn(0, points.size - 1)
-        val diff1 = abs(points[candidate1].x - targetX)
-        val diff2 = abs(points[candidate2].x - targetX)
-        return if (diff1 <= diff2) candidate1 else candidate2
+        return low
     }
 
-    private fun distanceSquared(p: TrajectoryPoint, x: Double, y: Double): Double {
+    private fun pickCloserNeighbor(points: List<ITrajectoryPoint>, idx: Int, targetX: Double): Int {
+        if (idx <= 0) return 0
+        val prevDiff = abs(points[idx - 1].x - targetX)
+        val currDiff = abs(points[idx].x - targetX)
+        return if (prevDiff <= currDiff) idx - 1 else idx
+    }
+
+    private fun distanceSquared(p: ITrajectoryPoint, x: Double, y: Double): Double {
         val dx = p.x - x
         val dy = p.y - y
         return dx * dx + dy * dy

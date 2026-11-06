@@ -1,63 +1,43 @@
 package org.example.scrubbing
 
-import org.example.model.TrajectoryMatrix
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.rendering.CoordinateTransformer
+import org.example.telemetry.DefaultTelemetryProvider
 import org.example.telemetry.InstantaneousStateApi
-import org.example.telemetry.TelemetryFactory
 
 /**
- * Adaptador que implementa [ITrajectoryInspector] conectando el motor de física y telemetría de Dev 1
- * con el módulo de interfaz y scrubbing de Dev 2 (Adapter Pattern + DIP + SRP).
- *
- * Responsabilidad Única (SRP):
- *  - Su única función es traducir las consultas de [ITrajectoryInspector] hacia la API de telemetría
- *    de Dev 1 ([InstantaneousStateApi]) y aplicar la transformación de coordenadas mediante [CoordinateTransformer].
- *
- * Inversión de Dependencias (DIP):
- *  - Depende de abstracciones ([CoordinateTransformer], [InstantaneousStateApi]).
- *
- * @param matrix Matriz de trayectoria calculada tras el lanzamiento.
- * @param transformer Conversor de coordenadas entre píxeles del canvas y metros de física.
- * @param telemetryApi API de estado instantáneo de Dev 1 (por defecto [TelemetryFactory.createInstantaneousStateApi]).
+ * Adaptador que implementa [ITrajectoryInspector] desacoplado mediante interfaces (Adapter + DIP + SRP).
  */
 class PhysicsTrajectoryInspectorAdapter(
-    val matrix: TrajectoryMatrix,
+    private val matrixRef: ITrajectoryMatrixSummary,
     private val transformer: CoordinateTransformer,
-    private val telemetryApi: InstantaneousStateApi = TelemetryFactory.createApi()
+    private val telemetryApi: InstantaneousStateApi = DefaultTelemetryProvider().buildApi(),
+    private val pointFactory: (Double, Double, Double, Double, Double) -> ISpanishKinematicView = ::TrajectoryPoint,
+    private val summaryFactory: (Double, Double) -> ISpanishFlightSummaryView = ::FlightSummary
 ) : ITrajectoryInspector {
+    private val sessionContext: Pair<ITrajectoryMatrixSummary, InstantaneousStateApi> = Pair(matrixRef, telemetryApi)
 
-    override fun findNearestPoint(physicsX: Double, physicsY: Double): TrajectoryPoint {
-        val state = telemetryApi.getInstantaneousState(matrix, physicsX, physicsY)
-        return TrajectoryPoint(
-            x = state.x,
-            y = state.height,
-            time = state.time,
-            height = state.height,
-            speed = state.speed
-        )
+    fun boundMatrix(): ITrajectoryMatrixSummary {
+        return sessionContext.first
     }
 
-    override fun findNearestPointFromCursor(cursorCanvasX: Double, cursorCanvasY: Double): TrajectoryPoint {
+    override fun findNearestPoint(physicsX: Double, physicsY: Double): ISpanishKinematicView {
+        val state = sessionContext.second.getInstantaneousState(sessionContext.first, physicsX, physicsY)
+        return pointFactory(state.x, state.height, state.time, state.height, state.speed)
+    }
+
+    override fun findNearestPointFromCursor(cursorCanvasX: Double, cursorCanvasY: Double): ISpanishKinematicView {
         val physicsX = transformer.toPhysicsX(cursorCanvasX)
         val physicsY = transformer.toPhysicsY(cursorCanvasY)
         return findNearestPoint(physicsX, physicsY)
     }
 
-    override fun findNearestPointByX(physicsX: Double): TrajectoryPoint {
-        val state = telemetryApi.getInstantaneousStateByX(matrix, physicsX)
-        return TrajectoryPoint(
-            x = state.x,
-            y = state.height,
-            time = state.time,
-            height = state.height,
-            speed = state.speed
-        )
+    override fun findNearestPointByX(physicsX: Double): ISpanishKinematicView {
+        val state = sessionContext.second.getInstantaneousStateByX(sessionContext.first, physicsX)
+        return pointFactory(state.x, state.height, state.time, state.height, state.speed)
     }
 
-    override fun getFlightSummary(): FlightSummary {
-        return FlightSummary(
-            totalFlightTime = matrix.timeOfFlight,
-            totalDistance = matrix.range
-        )
+    override fun getFlightSummary(): ISpanishFlightSummaryView {
+        return summaryFactory(sessionContext.first.timeOfFlight, sessionContext.first.range)
     }
 }

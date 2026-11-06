@@ -1,58 +1,33 @@
 package org.example.animation
 
-import org.example.collision.CollisionResult
+import javafx.animation.AnimationTimer
+import org.example.collision.ICollisionResult
 
 /**
- * Listener para eventos de colisión (ISP + DIP).
- *
- * Permite que los observadores (UI, panel de control, sonido, efectos)
- * reciban la notificación del resultado de la colisión calculado
- * por el módulo del Issue 2.1 exactamente al impactar el suelo,
- * sin acoplar la física a la presentación.
+ * Adaptador concreto de callback funcional hacia [CollisionListener] (Adapter + DIP).
  */
-interface CollisionListener {
-    /**
-     * Invocado exactamente al impactar el suelo con el resultado del validador de colisión (Issue 2.1).
-     *
-     * @param result Resultado de la colisión (HIT, MISS, detalles de coordenadas y distancia).
-     */
-    fun onCollision(result: CollisionResult)
-
-    companion object {
-        inline operator fun invoke(crossinline block: (CollisionResult) -> Unit): CollisionListener =
-            object : CollisionListener {
-                override fun onCollision(result: CollisionResult) = block(result)
-            }
+class CollisionCallbackAdapter(
+    private val callback: (ICollisionResult) -> Unit
+) : CollisionListener {
+    override fun onCollision(result: ICollisionResult) {
+        callback(result)
     }
 }
 
 /**
- * Abstracción del reloj de fotogramas para animación (DIP + SRP).
- *
- * Desacopla la lógica temporal de la animación del toolkit gráfico de JavaFX ([AnimationTimer]).
- * Esto permite pruebas unitarias puras y deterministas en JUnit sin requerir
- * la inicialización de la JVM gráfica.
- */
-interface FrameTicker {
-    /** Inicia el envío de pulsos de fotogramas al callback suministrado. */
-    fun start(onTick: (now: Long) -> Unit)
-
-    /** Detiene el bucle de fotogramas. */
-    fun stop()
-}
-
-/**
- * Implementación de producción de [FrameTicker] usando [javafx.animation.AnimationTimer].
+ * Implementación de producción de [FrameTicker] usando [AnimationTimer] (SRP + DIP).
  */
 class JavaFxFrameTicker : FrameTicker {
-    private var timer: javafx.animation.AnimationTimer? = null
+    private var timer: AnimationTimer? = null
 
     override fun start(onTick: (now: Long) -> Unit) {
-        timer = object : javafx.animation.AnimationTimer() {
+        val created = object : AnimationTimer() {
             override fun handle(now: Long) {
                 onTick(now)
             }
-        }.also { it.start() }
+        }
+        timer = created
+        created.start()
     }
 
     override fun stop() {
@@ -62,28 +37,26 @@ class JavaFxFrameTicker : FrameTicker {
 }
 
 /**
- * Implementación de [FrameTicker] para pruebas unitarias deterministas sin entorno gráfico.
+ * Implementación encapsulada de [IInspectableTicker] para pruebas deterministas sin entorno gráfico (SRP + Encapsulación).
  */
-class ManualFrameTicker : FrameTicker {
-    private var tickCallback: ((Long) -> Unit)? = null
-    var isRunning: Boolean = false
-        private set
+class ManualFrameTicker : IInspectableTicker {
+    private var tickerState: Pair<Boolean, ((Long) -> Unit)?> = Pair(false, null)
+
+    override fun checkRunning(): Boolean {
+        return tickerState.first
+    }
 
     override fun start(onTick: (now: Long) -> Unit) {
-        isRunning = true
-        tickCallback = onTick
+        tickerState = Pair(true, onTick)
     }
 
     override fun stop() {
-        isRunning = false
-        tickCallback = null
+        tickerState = Pair(false, null)
     }
 
-    /** Simula el paso de un fotograma en el instante [nowNano]. */
-    fun advance(nowNano: Long) {
-        if (isRunning) {
-            tickCallback?.invoke(nowNano)
+    override fun advance(nowNano: Long) {
+        if (tickerState.first) {
+            tickerState.second?.invoke(nowNano)
         }
     }
 }
-

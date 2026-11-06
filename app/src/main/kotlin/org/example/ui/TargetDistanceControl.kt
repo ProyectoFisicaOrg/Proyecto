@@ -8,54 +8,46 @@ import org.example.rendering.CoordinateTransformer
  * Especificación encapsulada de límites (18.00 m .. 312.00 m) y valor por defecto del objetivo (SRP + Encapsulación).
  */
 class TargetDistanceSpec(
-    private val minVal: Double = 18.0,
-    private val maxVal: Double = 312.0,
-    private val defaultVal: Double = 264.0
-) {
-    fun minMeters(): Double = minVal
+    minVal: Double = 18.0,
+    maxVal: Double = 312.0,
+    defaultVal: Double = 264.0,
+    private val defaultValidator: INumericInputValidator = NumericInputValidator()
+) : ITargetDistanceSpec {
+    private val bounds: List<Double> = listOf(minVal, maxVal, defaultVal)
 
-    fun maxMeters(): Double = maxVal
+    override fun minMeters(): Double {
+        return bounds[0]
+    }
 
-    fun defaultMeters(): Double = defaultVal
+    override fun maxMeters(): Double {
+        return bounds[1]
+    }
 
-    fun clampMeters(value: Double): Double =
-        round(value.coerceIn(minVal, maxVal) * 100.0) / 100.0
+    override fun defaultMeters(): Double {
+        return bounds[2]
+    }
 
-    fun resolveCommittedMeters(rawText: String, validator: INumericInputValidator = NumericInputValidator()): Double {
-        val parsed = validator.parseOrNull(rawText) ?: return defaultVal
-        if (!parsed.isFinite()) return defaultVal
+    override fun clampMeters(value: Double): Double {
+        return round(value.coerceIn(bounds[0], bounds[1]) * 100.0) / 100.0
+    }
+
+    override fun resolveCommittedMeters(rawText: String, validator: INumericInputValidator?): Double {
+        val chosen = validator ?: defaultValidator
+        val parsed = chosen.parseOrNull(rawText) ?: return bounds[2]
+        if (!parsed.isFinite()) return bounds[2]
         return clampMeters(parsed)
     }
 
-    fun formatNumber(meters: Double): String =
-        String.format(Locale.US, "%.2f", meters)
-}
-
-/**
- * Puerto abstracto del componente visual flotante de distancia bajo el blanco (DIP + ISP).
- */
-interface ITargetOverlayView {
-    fun textPort(): ITextInputPort
-    fun updateHorizontalPosition(targetCanvasX: Double)
-    fun setLocked(locked: Boolean)
-    fun isLocked(): Boolean
-}
-
-/**
- * Contrato del controlador de edición manual y sincronización bidireccional de la distancia al blanco (DIP + ISP).
- */
-interface ITargetDistanceController {
-    fun bind()
-    fun syncFromCanvasX(targetCanvasX: Double)
-    fun prepareForLaunch()
-    fun unlockForEditing()
+    override fun formatNumber(meters: Double): String {
+        return String.format(Locale.US, "%.2f", bounds[0].coerceAtMost(meters).let { meters })
+    }
 }
 
 /**
  * Controlador de edición manual de distancia al blanco con clamping [18.00, 312.00] y bloqueo tras disparar (SRP + DIP).
  */
 class TargetDistanceController(
-    private val spec: TargetDistanceSpec,
+    private val spec: ITargetDistanceSpec,
     private val transformer: CoordinateTransformer,
     private val overlayView: ITargetOverlayView,
     private val onTargetCanvasXCommitted: (Double) -> Unit,
@@ -65,12 +57,12 @@ class TargetDistanceController(
 
     override fun bind() {
         overlayView.textPort().installFilter { candidate ->
-            validator.isValidPartial(candidate, allowDecimal = true)
+            validator.isValidPartial(candidate, true)
         }
         overlayView.textPort().onCommitRequested { commitText() }
     }
 
-    fun commitText() {
+    override fun commitText() {
         if (syncing || overlayView.isLocked()) return
         val meters = spec.resolveCommittedMeters(overlayView.textPort().currentText(), validator)
         val newCanvasX = transformer.toCanvasX(meters)

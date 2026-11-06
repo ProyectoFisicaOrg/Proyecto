@@ -9,56 +9,50 @@ import javafx.scene.input.MouseEvent
 import javafx.scene.paint.Color
 import kotlin.math.hypot
 import kotlin.math.sin
-import org.example.collision.CollisionStatus
-import org.example.model.SimulationState
+import org.example.model.ISimulationState
 
 /**
- * Contrato abstracto para el renderizador y manipulador del objetivo (DIP).
+ * Estado visual instantáneo encapsulado para el dibujado de la diana (SRP + Encapsulación).
  */
-interface ITargetRenderer {
-    val targetRadius: Double
-    fun drawTarget(x: Double)
-    fun startPulse()
-    fun stopPulse()
-    fun canMoveTarget(): Boolean
-    fun cancelDrag()
-    fun getValidXRange(): ClosedFloatingPointRange<Double>
-    fun randomizePosition(targetRandomizer: ITargetRandomizer = UniformTargetRandomizer()): Boolean
-    fun installDrag()
-}
+class TargetVisualFlags(
+    animating: Boolean,
+    hit: Boolean,
+    dragging: Boolean
+) : ITargetVisualFlags {
+    private val flags: List<Boolean> = listOf(animating, hit, dragging)
 
-/**
- * Estado visual instantáneo para el dibujado de la diana (SRP).
- */
-private class TargetVisualFlags(
-    private val animating: Boolean,
-    private val hit: Boolean,
-    private val dragging: Boolean
-) {
-    fun isAnimating(): Boolean = animating
-    fun isHit(): Boolean = hit
-    fun isDragging(): Boolean = dragging
+    override fun isAnimating(): Boolean {
+        return flags[0]
+    }
 
-    fun outerRingColor(): Color = when {
-        hit -> Color.rgb(46, 204, 113)
-        dragging -> Color.rgb(231, 76, 60)
-        else -> Color.rgb(217, 30, 24)
+    override fun isHit(): Boolean {
+        return flags[1]
+    }
+
+    override fun isDragging(): Boolean {
+        return flags[2]
+    }
+
+    override fun outerRingColor(): Color {
+        if (flags[1]) return Color.rgb(46, 204, 113)
+        if (flags[2]) return Color.rgb(231, 76, 60)
+        return Color.rgb(217, 30, 24)
     }
 }
 
 /**
- * Pintor dedicado exclusivamente a la representación gráfica de la diana (SRP).
+ * Pintor dedicado exclusivamente a la representación gráfica de la diana (SRP + DIP).
  */
-private class TargetCanvasPainter(
+class TargetCanvasPainter(
     private val gc: GraphicsContext,
-    private val cfg: SceneConfig,
+    private val cfg: ISceneConfig,
     private val baseRadius: Double
-) {
-    fun draw(x: Double, flags: TargetVisualFlags) {
+) : ITargetCanvasPainter {
+
+    override fun draw(x: Double, flags: ITargetVisualFlags) {
         val pulse = if (flags.isAnimating()) 1.0 else 1.0 + 0.06 * sin((System.nanoTime() / 1_000_000_000.0) * 3.0)
         val r = baseRadius * pulse
         val cy = cfg.groundY
-
         gc.save()
         try {
             gc.fill = Color.rgb(0, 0, 0, 0.22)
@@ -71,14 +65,12 @@ private class TargetCanvasPainter(
         }
     }
 
-    private fun drawConcentricRings(cx: Double, cy: Double, r: Double, flags: TargetVisualFlags) {
+    private fun drawConcentricRings(cx: Double, cy: Double, r: Double, flags: ITargetVisualFlags) {
         gc.fill = flags.outerRingColor()
         gc.fillOval(cx - r, cy - r, r * 2.0, r * 2.0)
-
         val midR = r * 0.65
         gc.fill = Color.rgb(255, 255, 255)
         gc.fillOval(cx - midR, cy - midR, midR * 2.0, midR * 2.0)
-
         val centerR = r * 0.35
         gc.fill = if (flags.isHit()) Color.rgb(39, 174, 96) else Color.rgb(192, 57, 43)
         gc.fillOval(cx - centerR, cy - centerR, centerR * 2.0, centerR * 2.0)
@@ -99,15 +91,15 @@ private class TargetCanvasPainter(
 }
 
 /**
- * Controlador de animación de pulso en reposo del objetivo (SRP).
+ * Controlador de animación de pulso en reposo del objetivo (SRP + DIP).
  */
-private class TargetPulseController(
-    private val state: SimulationState,
+class TargetPulseController(
+    private val state: ISimulationState,
     private val onRepaint: () -> Unit
-) {
+) : IPulseController {
     private var pulseTimer: AnimationTimer? = null
 
-    fun start() {
+    override fun start() {
         if (pulseTimer == null) {
             pulseTimer = object : AnimationTimer() {
                 override fun handle(now: Long) {
@@ -118,43 +110,45 @@ private class TargetPulseController(
         pulseTimer?.start()
     }
 
-    fun stop() {
+    override fun stop() {
         pulseTimer?.stop()
         pulseTimer = null
     }
 }
 
 /**
- * Gestor de eventos de arrastre horizontal y actualización de posición de la diana (SRP).
+ * Gestor encapsulado de eventos de arrastre horizontal de la diana (SRP + DIP).
  */
-private class TargetDragInteraction(
+class TargetDragInteraction(
     private val canvas: Canvas,
-    private val cfg: SceneConfig,
-    private val state: SimulationState,
-    private val onPositionChanged: (Double) -> Unit,
-    private val onRepaint: () -> Unit
-) {
-    var isDragging: Boolean = false
-        private set
-    private var dragOffsetX: Double = 0.0
+    private val cfg: ISceneConfig,
+    private val state: ISimulationState,
+    private val callbacks: Pair<(Double) -> Unit, () -> Unit>
+) : ITargetDragInteraction {
+    private var dragState: Pair<Boolean, Double> = Pair(false, 0.0)
 
-    fun validXRange(targetRadius: Double): ClosedFloatingPointRange<Double> =
-        (cfg.cannonBaseX + 45.0)..(cfg.canvasWidth - targetRadius - 10.0)
-
-    fun applyTargetX(newX: Double) {
-        state.targetX = newX
-        onPositionChanged(newX)
-        onRepaint()
+    override fun checkDragging(): Boolean {
+        return dragState.first
     }
 
-    fun cancel() {
-        if (isDragging) {
-            isDragging = false
+    override fun validXRange(targetRadius: Double): ClosedFloatingPointRange<Double> {
+        return (cfg.cannonBaseX + 45.0)..(cfg.canvasWidth - targetRadius - 10.0)
+    }
+
+    override fun applyTargetX(newX: Double) {
+        state.targetX = newX
+        callbacks.first.invoke(newX)
+        callbacks.second.invoke()
+    }
+
+    override fun cancel() {
+        if (dragState.first) {
+            dragState = Pair(false, 0.0)
             canvas.cursor = Cursor.DEFAULT
         }
     }
 
-    fun install(targetRadius: Double) {
+    override fun install(targetRadius: Double) {
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED) { onPressed(it) }
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED) { onDragged(it, validXRange(targetRadius)) }
         canvas.addEventHandler(MouseEvent.MOUSE_RELEASED) { onReleased(it) }
@@ -171,35 +165,34 @@ private class TargetDragInteraction(
         if (event.isConsumed || state.isAnimating) return
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
         if (isSelectableAt(local)) {
-            isDragging = true
-            dragOffsetX = local.x - state.targetX
+            dragState = Pair(true, local.x - state.targetX)
             canvas.cursor = Cursor.CLOSED_HAND
-            onRepaint()
+            callbacks.second.invoke()
             event.consume()
         }
     }
 
     private fun onDragged(event: MouseEvent, validRange: ClosedFloatingPointRange<Double>) {
-        if (event.isConsumed || !isDragging) return
+        if (event.isConsumed || !dragState.first) return
         if (state.isAnimating) {
             cancel()
             return
         }
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-        applyTargetX((local.x - dragOffsetX).coerceIn(validRange))
+        applyTargetX((local.x - dragState.second).coerceIn(validRange))
         event.consume()
     }
 
     private fun onReleased(event: MouseEvent) {
-        if (!isDragging) return
-        isDragging = false
+        if (!dragState.first) return
+        dragState = Pair(false, 0.0)
         canvas.cursor = if (!state.isAnimating) Cursor.HAND else Cursor.DEFAULT
-        onRepaint()
+        callbacks.second.invoke()
         event.consume()
     }
 
     private fun onMoved(event: MouseEvent) {
-        if (event.isConsumed || isDragging || state.isAnimating) return
+        if (event.isConsumed || dragState.first || state.isAnimating) return
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
         if (isSelectableAt(local)) {
             canvas.cursor = Cursor.HAND
@@ -208,51 +201,80 @@ private class TargetDragInteraction(
 }
 
 /**
- * Orquestador de renderizado y manipulación horizontal del objetivo (SRP + DIP).
+ * Orquestador cohesivo de renderizado y manipulación horizontal del objetivo (SRP + DIP).
  */
 class TargetRenderer(
-    gc: GraphicsContext,
-    cfg: SceneConfig,
-    canvas: Canvas,
-    private val state: SimulationState,
-    onTargetPositionChanged: (Double) -> Unit,
-    onRepaint: () -> Unit,
-    randomizer: ITargetRandomizer = UniformTargetRandomizer()
+    private val state: ISimulationState,
+    painter: ITargetCanvasPainter,
+    dragInteraction: ITargetDragInteraction,
+    pulseController: IPulseController,
+    private val defaultRandomizer: ITargetRandomizer = UniformTargetRandomizer(),
+    private val radiusPx: Double = 20.0
 ) : ITargetRenderer {
-    override val targetRadius: Double = 20.0
-    private val defaultRandomizer: ITargetRandomizer = randomizer
 
-    private val painter = TargetCanvasPainter(gc, cfg, targetRadius)
-    private val dragInteraction = TargetDragInteraction(canvas, cfg, state, onTargetPositionChanged, onRepaint)
-    private val pulseController = TargetPulseController(state, onRepaint)
+    constructor(
+        gc: GraphicsContext,
+        cfg: ISceneConfig,
+        canvas: Canvas,
+        state: ISimulationState,
+        onTargetPositionChanged: (Double) -> Unit,
+        onRepaint: () -> Unit,
+        randomizer: ITargetRandomizer = UniformTargetRandomizer()
+    ) : this(
+        state = state,
+        painter = TargetCanvasPainter(gc, cfg, 20.0),
+        dragInteraction = TargetDragInteraction(canvas, cfg, state, Pair(onTargetPositionChanged, onRepaint)),
+        pulseController = TargetPulseController(state, onRepaint),
+        defaultRandomizer = randomizer,
+        radiusPx = 20.0
+    )
+
+    private val components: Triple<ITargetCanvasPainter, ITargetDragInteraction, IPulseController> =
+        Triple(painter, dragInteraction, pulseController)
 
     init {
-        state.targetRadius = targetRadius
+        state.targetRadius = radiusPx
+    }
+
+    override fun radiusPixels(): Double {
+        return radiusPx
     }
 
     override fun drawTarget(x: Double) {
-        val isHit = state.lastCollisionResult?.status == CollisionStatus.HIT
-        painter.draw(x, TargetVisualFlags(state.isAnimating, isHit, dragInteraction.isDragging))
+        val isHit = state.lastCollisionResult?.isHit() == true
+        val flags = TargetVisualFlags(state.isAnimating, isHit, components.second.checkDragging())
+        components.first.draw(x, flags)
     }
 
-    override fun startPulse() = pulseController.start()
+    override fun startPulse() {
+        components.third.start()
+    }
 
-    override fun stopPulse() = pulseController.stop()
+    override fun stopPulse() {
+        components.third.stop()
+    }
 
-    override fun canMoveTarget(): Boolean = !state.isAnimating
+    override fun canMoveTarget(): Boolean {
+        return !state.isAnimating
+    }
 
-    override fun cancelDrag() = dragInteraction.cancel()
+    override fun cancelDrag() {
+        components.second.cancel()
+    }
 
-    override fun getValidXRange(): ClosedFloatingPointRange<Double> =
-        dragInteraction.validXRange(targetRadius)
+    override fun getValidXRange(): ClosedFloatingPointRange<Double> {
+        return components.second.validXRange(radiusPx)
+    }
 
-    override fun randomizePosition(targetRandomizer: ITargetRandomizer): Boolean {
+    override fun randomizePosition(targetRandomizer: ITargetRandomizer?): Boolean {
         if (!canMoveTarget()) return false
         val range = getValidXRange()
-        val chosen = if (targetRandomizer === defaultRandomizer) defaultRandomizer else targetRandomizer
-        dragInteraction.applyTargetX(chosen.calculateRandomX(range.start, range.endInclusive))
+        val chosen = targetRandomizer ?: defaultRandomizer
+        components.second.applyTargetX(chosen.calculateRandomX(range.start, range.endInclusive))
         return true
     }
 
-    override fun installDrag() = dragInteraction.install(targetRadius)
+    override fun installDrag() {
+        components.second.install(radiusPx)
+    }
 }

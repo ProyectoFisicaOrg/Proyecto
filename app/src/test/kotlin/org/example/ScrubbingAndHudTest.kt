@@ -6,12 +6,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import org.example.model.SimulationState
-import org.example.model.TrajectoryMatrix
-import org.example.rendering.CoordinateTransformer
-import org.example.rendering.DefaultCoordinateTransformer
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.rendering.PathRenderer
-import org.example.rendering.SceneConfig
 import org.example.scrubbing.FlightSummary
 import org.example.scrubbing.ITrajectoryInspector
 import org.example.scrubbing.PhysicsTrajectoryInspectorAdapter
@@ -23,26 +19,32 @@ import org.example.scrubbing.TrajectoryPoint
 /**
  * Pruebas unitarias de contratos, adaptador e interacción de Scrubbing (SRP).
  */
-class ScrubbingAndHudTest {
+class ScrubbingAndHudTest : ISimulationTestSuite {
 
-    private val cfg = SceneConfig(canvasWidth = 900.0, canvasHeight = 550.0)
-    private val transformer: CoordinateTransformer = DefaultCoordinateTransformer(cfg, pixelsPerMeter = 2.5)
-    private val generator = TrajectorySimulationFactory.createGenerator()
+    private val fixture: Triple<TestSceneGeometry, TestStateBuilderA, TestMatrixSampleBuilder> = Triple(
+        TestSceneGeometry(),
+        TestStateBuilderA(),
+        TestMatrixSampleBuilder()
+    )
 
-    private fun createSampleMatrix(): TrajectoryMatrix =
-        generator.generate(PhysicsParams(45.0, 40.0, 9.8, 5.0), samplesPerSecond = 120)
+    override fun suiteName(): String {
+        return "ScrubbingAndHudTest"
+    }
+
+    private fun createSampleMatrix(): ITrajectoryMatrixSummary {
+        return fixture.third.matrix(vel = 40.0, samples = 120)
+    }
 
     @Test
     fun test_physics_adapter_correctly_implements_ITrajectoryInspector() {
         val matrix = createSampleMatrix()
+        val transformer = fixture.first.transformer()
         val inspector: ITrajectoryInspector = PhysicsTrajectoryInspectorAdapter(matrix, transformer)
         val nearestPhysical = inspector.findNearestPoint(50.0, 20.0)
         assertTrue(nearestPhysical.speed > 0.0 && nearestPhysical.time > 0.0)
-
         val nearestFromCursor = inspector.findNearestPointFromCursor(transformer.toCanvasX(50.0), transformer.toCanvasY(20.0))
         assertEquals(nearestPhysical.x, nearestFromCursor.x, 1e-4)
         assertEquals(nearestPhysical.y, nearestFromCursor.y, 1e-4)
-
         val summary = inspector.getFlightSummary()
         assertEquals(matrix.timeOfFlight, summary.totalFlightTime, 1e-4)
         assertEquals(matrix.range, summary.totalDistance, 1e-4)
@@ -50,13 +52,13 @@ class ScrubbingAndHudTest {
 
     @Test
     fun test_scrubbing_is_disabled_before_projectile_impact_and_only_enabled_post_flight() {
-        val controller = ScrubbingController(SimulationState(), transformer, cfg)
+        val geom = fixture.first
+        val controller = ScrubbingController(fixture.second.freshState(), geom.transformer(), geom.config())
         assertFalse(controller.isEnabled || controller.isDragging)
         assertNull(controller.inspector)
         assertFalse(controller.handleMousePressed(100.0, 100.0))
-
         val matrix = createSampleMatrix()
-        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, transformer))
+        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, geom.transformer()))
         assertTrue(controller.isEnabled)
         assertNotNull(controller.currentPoint)
         assertEquals(matrix.timeOfFlight, controller.flightSummary?.totalFlightTime)
@@ -64,61 +66,59 @@ class ScrubbingAndHudTest {
 
     @Test
     fun test_scrubbing_precisely_snaps_projectile_position_to_the_prior_trajectory_curve() {
-        val state = SimulationState()
-        val controller = ScrubbingController(state, transformer, cfg)
+        val state = fixture.second.freshState()
+        val transformer = fixture.first.transformer()
+        val controller = ScrubbingController(state, transformer, fixture.first.config())
         val matrix = createSampleMatrix()
         controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, transformer))
-
         val midPt = matrix.points[matrix.points.size / 2]
         val midX = transformer.toCanvasX(midPt.x)
         val midY = transformer.toCanvasY(midPt.y)
         assertTrue(controller.handleMousePressed(midX, midY) && controller.isDragging)
         assertEquals(midX, state.projectileX, 1e-4)
         assertEquals(midY, state.projectileY, 1e-4)
-
         val quarterPt = matrix.points[matrix.points.size / 4]
         val dragX = transformer.toCanvasX(quarterPt.x)
-        val dragY = transformer.toCanvasY(quarterPt.y)
-        assertTrue(controller.handleMouseDragged(dragX, dragY))
+        assertTrue(controller.handleMouseDragged(dragX, transformer.toCanvasY(quarterPt.y)))
         assertEquals(dragX, state.projectileX, 1e-4)
         assertTrue(controller.handleMouseReleased() && !controller.isDragging)
     }
 
     @Test
     fun test_scrubbing_does_not_intercept_clicks_on_the_ground_target_away_from_projectile() {
-        val state = SimulationState().apply {
-            targetX = 650.0
-            targetRadius = 20.0
-            projectileX = 100.0
-            projectileY = 400.0
-        }
-        val controller = ScrubbingController(state, transformer, cfg)
-        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), transformer))
-        assertFalse(controller.handleMousePressed(state.targetX, cfg.groundY))
+        val state = fixture.second.freshState()
+        state.targetX = 650.0
+        state.targetRadius = 20.0
+        state.projectileX = 100.0
+        state.projectileY = 400.0
+        val geom = fixture.first
+        val controller = ScrubbingController(state, geom.transformer(), geom.config())
+        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), geom.transformer()))
+        assertFalse(controller.handleMousePressed(state.targetX, geom.config().groundY))
         assertFalse(controller.isDragging)
     }
 
     @Test
     fun test_when_projectile_is_on_top_of_target_clicking_on_the_projectile_selects_the_projectile_because_it_is_in_front() {
         val matrix = createSampleMatrix()
-        val impactX = transformer.toCanvasX(matrix.impactPoint.x)
-        val impactY = transformer.toCanvasY(matrix.impactPoint.y)
-        val state = SimulationState().apply {
-            targetX = impactX
-            targetRadius = 20.0
-            projectileX = impactX
-            projectileY = impactY
-        }
-        val controller = ScrubbingController(state, transformer, cfg)
-        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, transformer))
-        assertTrue(controller.handleMousePressed(impactX, impactY))
-        assertTrue(controller.isDragging)
+        val geom = fixture.first
+        val impactX = geom.transformer().toCanvasX(matrix.impactPoint.x)
+        val impactY = geom.transformer().toCanvasY(matrix.impactPoint.y)
+        val state = fixture.second.freshState()
+        state.targetX = impactX
+        state.targetRadius = 20.0
+        state.projectileX = impactX
+        state.projectileY = impactY
+        val controller = ScrubbingController(state, geom.transformer(), geom.config())
+        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, geom.transformer()))
+        assertTrue(controller.handleMousePressed(impactX, impactY) && controller.isDragging)
     }
 
     @Test
     fun test_disabling_scrubbing_resets_state_and_clears_inspector() {
-        val controller = ScrubbingController(SimulationState(), transformer, cfg)
-        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), transformer))
+        val geom = fixture.first
+        val controller = ScrubbingController(fixture.second.freshState(), geom.transformer(), geom.config())
+        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), geom.transformer()))
         assertTrue(controller.isEnabled)
         controller.disable()
         assertFalse(controller.isEnabled)
@@ -131,7 +131,11 @@ class ScrubbingAndHudTest {
 /**
  * Pruebas unitarias de modelos de telemetría, ResultsHUD, TooltipRenderer y congelación de estela (SRP).
  */
-class HudAndTooltipFormattingTest {
+class HudAndTooltipFormattingTest : ISimulationTestSuite {
+
+    override fun suiteName(): String {
+        return "HudAndTooltipFormattingTest"
+    }
 
     @Test
     fun test_trajectory_point_encapsulates_kinematic_state_and_provides_bilingual_accessors() {
