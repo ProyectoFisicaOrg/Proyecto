@@ -3,20 +3,20 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación II (RepoSense + análisis de calidad POO/SOLID). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-11-02.
+> Generado: 2026-11-06.
 
 ## 1. Veredicto
 
 | Aspecto | Resultado |
 |---|---|
-| Índice de calidad POO/SOLID | **4/100** |
-| Código (LOC) | 5,704 |
-| Archivos de código | 50 |
-| Clases (bien usadas) | 177 (76 OK) |
+| Índice de calidad POO/SOLID | **88/100** |
+| Código (LOC) | 6,887 |
+| Archivos de código | 111 |
+| Clases (bien usadas) | 259 (112 OK) |
 | Código dentro de clases (%POO) | 99% |
 | Funciones fuera de clases | 0 |
-| Duplicación lógica | 1.6% |
-| Señales S/O/L/I/D | 33/5/0/0/19 |
+| Duplicación lógica | 1.8% |
+| Señales S/O/L/I/D | 0/0/0/0/38 |
 
 > Este informe **describe** lo que el análisis midió con los criterios ya establecidos de la materia. No es una nota.
 
@@ -27,14 +27,14 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Semáforo | Resultado |
 |---|---|
 | Aprobar (`estandar`) | **no cumple** — 3/4 |
-| Destacar (`exigente`) | **no cumple** — 3/5 |
+| Destacar (`exigente`) | **no cumple** — 4/5 |
 
 **Criterios para aprobar**
 
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
 | Código dentro de clases (%POO) | ≥ 85% | 99% | sí |
-| Duplicación lógica | ≤ 10% | 1.6% | sí |
+| Duplicación lógica | ≤ 10% | 1.8% | sí |
 | Funciones fuera de clases | ≤ 1 | 0 | sí |
 | Señales POO/SOLID críticas | ninguna | Acoplamiento alto (CBO) | no |
 
@@ -43,10 +43,10 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
 | Código dentro de clases (%POO) | ≥ 95% | 99% | sí |
-| Duplicación lógica | ≤ 5% | 1.6% | sí |
+| Duplicación lógica | ≤ 5% | 1.8% | sí |
 | Funciones fuera de clases | ≤ 1 | 0 | sí |
-| Señales POO/SOLID críticas | ninguna | Baja cohesión (LCOM), Complejidad alta, Acoplamiento alto (CBO), Switch sobre tipos (OCP) | no |
-| Índice de calidad POO/SOLID | ≥ 60 | 4/100 | no |
+| Señales POO/SOLID críticas | ninguna | Acoplamiento alto (CBO) | no |
+| Índice de calidad POO/SOLID | ≥ 60 | 88/100 | sí |
 
 ### Cómo se calcula el %POO (y por qué no sube solo)
 
@@ -60,12 +60,12 @@ Sube cuando el código que hoy está **fuera** de clases pasa a ser método de u
 
 | Autor | Commits | Código (LOC) | Tests (LOC) | Docs (LOC) | Días activos | % del código |
 |---|---:|---:|---:|---:|---:|---:|
-| Agustin Marañon | 7 | 3,873 | 1,239 | 1 | 8 | 75% |
-| matteocatania | 5 | 1,270 | 329 | 1 | 5 | 25% |
+| Agustin Marañon | 8 | 5,341 | 1,632 | 1 | 9 | 86% |
+| matteocatania | 5 | 834 | 240 | 1 | 5 | 14% |
 
 > _El LOC de autoría lo calcula RepoSense sobre el historial y puede diferir del LOC de código del análisis de calidad (que mira solo el estado de `main`)._
 
-> **Reparto del trabajo:** Agustin Marañon concentra el 75% de las líneas de código. Un reparto muy desigual suele indicar que la integración no fue realmente en equipo; vale la pena reconstruir cómo se coordinó.
+> **Reparto del trabajo:** Agustin Marañon concentra el 86% de las líneas de código. Un reparto muy desigual suele indicar que la integración no fue realmente en equipo; vale la pena reconstruir cómo se coordinó.
 
 ## 3. Fallas detectadas
 
@@ -73,12 +73,9 @@ Reúne lo que el análisis marcó y lo que todavía falta para cada semáforo. C
 
 | Falla | Tu resultado | Requisito | Archivos |
 |---|---|---|---|
-| Señales POO/SOLID críticas | Acoplamiento alto (CBO) | Aprobar: ninguna<br>Destacar: ninguna | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/Physics.kt`, `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`, `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`, `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`, `app/src/main/kotlin/org/example/model/SimulationState.kt` (+18 más) |
-| Índice de calidad POO/SOLID | 4/100 | Destacar: ≥ 60 | — |
-| Métodos/funciones largos o con muchos parámetros | **10** método(s)/función(es) largos o con muchos parámetros | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/telemetry/InstantaneousStateApi.kt`, `app/src/main/kotlin/org/example/telemetry/TrajectoryNearestNeighborSearcher.kt`, `app/src/main/kotlin/org/example/trajectory/TrajectoryMatrixGenerator.kt`, `app/src/main/kotlin/org/example/trajectory/TrajectorySearcher.kt`, `app/src/main/kotlin/org/example/ui/ControlPanel.kt` (+3 más) |
-| Dependencia de concretos y falta de abstracciones (DIP) | **19** dependencia(s) de concretos sin abstracciones | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`, `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`, `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`, `app/src/main/kotlin/org/example/rendering/CannonRenderer.kt`, `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt` (+7 más) |
-| Clase sin métodos (solo datos) | **26** clase(s) sin métodos (solo datos) | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/Physics.kt`, `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`, `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`, `app/src/main/kotlin/org/example/model/SimulationState.kt`, `app/src/main/kotlin/org/example/model/TrajectoryMatrix.kt` (+13 más) |
-| Campos públicos (encapsulación) | **19** clase(s) con campos públicos | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/Physics.kt`, `app/src/main/kotlin/org/example/model/SimulationState.kt`, `app/src/main/kotlin/org/example/model/TrajectoryMatrix.kt`, `app/src/main/kotlin/org/example/rendering/SceneConfig.kt`, `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt` (+9 más) |
+| Señales POO/SOLID críticas | Acoplamiento alto (CBO) | Aprobar: ninguna<br>Destacar: ninguna | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`, `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`, `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`, `app/src/main/kotlin/org/example/scrubbing/PhysicsTrajectoryInspectorAdapter.kt`, `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt` (+1 más) |
+| Dependencia de concretos y falta de abstracciones (DIP) | **38** dependencia(s) de concretos sin abstracciones | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`, `app/src/main/kotlin/org/example/animation/AnimationEngine.kt`, `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`, `app/src/main/kotlin/org/example/model/SimulationState.kt`, `app/src/main/kotlin/org/example/model/TrajectoryMatrix.kt` (+12 más) |
+| Campos públicos (encapsulación) | **10** clase(s) con campos públicos | Sin señales | `app/src/main/kotlin/org/example/PhysicsParamsContract.kt`, `app/src/main/kotlin/org/example/TrajectoryPointContract.kt`, `app/src/main/kotlin/org/example/model/FlightMotionContract.kt`, `app/src/main/kotlin/org/example/model/TrajectoryMatrixContract.kt`, `app/src/main/kotlin/org/example/rendering/SceneConfigContract.kt`, `app/src/main/kotlin/org/example/scrubbing/FlightSummaryContract.kt` (+4 más) |
 
 ## 4. Aspectos evaluados
 
@@ -88,19 +85,19 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Un resumen numérico (0-100) que combina la riqueza de clases bien usadas con la penalización por señales POO/SOLID y duplicación, y luego aplica topes duros.
 - **Por qué importa:** Ordena y prioriza la revisión: un índice bajo indica varias señales que conviene mirar juntas.
-- **Tu resultado:** índice **4/100**
+- **Tu resultado:** índice **88/100**
 
 ### 2. Duplicación lógica (DRY) (duplicacion) — sin señales
 
 - **Qué mide:** Porcentaje de bloques de LÓGICA repetidos. Quedan fuera imports/includes, anotaciones, declaraciones de campos y comentarios/Javadoc/docstrings: esos bloques son boilerplate, no lógica.
 - **Por qué importa:** Cada copia de lógica se mantiene por separado: un arreglo hay que repetirlo y los defectos se multiplican.
-- **Tu resultado:** **1.6%** de duplicación lógica
+- **Tu resultado:** **1.8%** de duplicación lógica
 
 ### 3. Adopción de POO (% de código en clases) (poo) — sin señales
 
 - **Qué mide:** Proporción de las **líneas de lógica** que viven dentro de una clase. Quedan fuera `package`/`import`/`using`/anotaciones y comentarios/Javadoc/docstrings: no son código que pueda estar dentro de una clase y, si contaran, el porcentaje quedaría topado por el boilerplate de cada archivo.
 - **Por qué importa:** El diseño orientado a objetos es el eje de la materia: el comportamiento debería vivir como método de una clase.
-- **Tu resultado:** **98.8%** del código dentro de clases
+- **Tu resultado:** **99.1%** del código dentro de clases
 - **Cómo leerlo:** Es una **proporción**, no un acumulado: agregar código dentro de una clase no la sube por sí solo (numerador y denominador crecen juntos). Sube cuando el código que está **fuera** de clases (funciones sueltas, `main`, constantes de módulo, scripts) pasa a ser método de una clase o deja de existir. La medición se hace sobre `main`: el trabajo que todavía vive en otra rama no se refleja hasta que se integra.
 
 ### 4. Funciones fuera de clases (sueltas) — sin señales
@@ -115,41 +112,29 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 - **Por qué importa:** Una clase que hace de todo cambia por muchos motivos y cuesta entenderla y probarla.
 - **Tu resultado:** **0** clase(s) demasiado grande(s)
 
-### 6. Baja cohesión (LCOM) (cohesion) — con señales
+### 6. Baja cohesión (LCOM) (cohesion) — sin señales
 
 - **Qué mide:** Métodos y campos de una clase que casi no se relacionan entre sí.
 - **Por qué importa:** Una unidad que cambia por motivos distintos y comparte poca información suele esconder más de una responsabilidad.
-- **Tu resultado:** **6** clase(s) con baja cohesión
-- **Para investigar la causa:**
-    - ¿Qué métodos de la clase no comparten estado con el resto?
-    - ¿Cambian por motivos distintos según la tarea?
-    - ¿Se pensó su responsabilidad antes de escribirla, o se fue agregando?
+- **Tu resultado:** **0** clase(s) con baja cohesión
 
-### 7. Complejidad alta (complejidad) — con señales
+### 7. Complejidad alta (complejidad) — sin señales
 
 - **Qué mide:** Complejidad ciclomática: cantidad de caminos posibles dentro de un método o función (condicionales, bucles, casos).
 - **Por qué importa:** Muchos caminos = difícil de seguir y de probar; suelen esconderse casos sin cubrir.
-- **Tu resultado:** **1** método(s)/función(es) con complejidad alta
-- **Para investigar la causa:**
-    - ¿Se agregaron condiciones a medida que aparecían casos nuevos?
-    - ¿Se probaron todos los caminos o solo el caso principal?
-    - ¿Hay reglas de negocio mezcladas con detalles técnicos?
+- **Tu resultado:** **0** método(s)/función(es) con complejidad alta
 
-### 8. Métodos/funciones largos o con muchos parámetros (tamano) — con señales
+### 8. Métodos/funciones largos o con muchos parámetros (tamano) — sin señales
 
 - **Qué mide:** Tamaño de los métodos/funciones y cantidad de parámetros.
 - **Por qué importa:** Una función que hace varias cosas cuesta leerla, nombrarla y reutilizarla.
-- **Tu resultado:** **10** método(s)/función(es) largos o con muchos parámetros
-- **Para investigar la causa:**
-    - ¿La función creció por acumulación de pasos?
-    - ¿Agrupa operaciones que podrían describirse por separado?
-    - ¿Los parámetros representan una misma idea (un objeto) o cosas sueltas?
+- **Tu resultado:** **0** método(s)/función(es) largos o con muchos parámetros
 
 ### 9. Acoplamiento alto (CBO) (acoplamiento) — con señales
 
-- **Qué mide:** Cuánto depende una clase de otros tipos del proyecto.
+- **Qué mide:** Cuánto depende una clase de otros tipos del proyecto. No cuentan los tipos de la plataforma (biblioteca estándar, DOM, motor Godot) ni los métodos/propiedades propias.
 - **Por qué importa:** Piezas muy enlazadas hacen que un cambio se propague y que sea difícil reemplazar partes.
-- **Tu resultado:** **26** clase(s) muy acoplada(s)
+- **Tu resultado:** **10** clase(s) muy acoplada(s)
 - **Para investigar la causa:**
     - ¿La clase conoce detalles internos de muchas otras?
     - ¿Se puede cambiar una parte sin tocar las demás?
@@ -161,15 +146,11 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 - **Por qué importa:** Jerarquías muy profundas vuelven difícil saber de dónde viene cada comportamiento.
 - **Tu resultado:** **0** clase(s) con herencia profunda
 
-### 11. Switch sobre tipos (OCP) (ocp) — con señales
+### 11. Switch sobre tipos (OCP) (ocp) — sin señales
 
-- **Qué mide:** Chequeos repetidos de tipo (`instanceof`/`is`/`typeof`) que equivalen a un switch sobre el tipo.
+- **Qué mide:** Cadenas de dispatch por tipo (`else if ... is` / `else if ... instanceof`, `switch` sobre tipo o `typeof`). Un `is Tipo variable` aislado (pattern matching / cast seguro) NO cuenta como switch.
 - **Por qué importa:** Cada tipo nuevo obliga a tocar varios lugares, en vez de extender con una implementación nueva.
-- **Tu resultado:** **5** clase(s) con switch sobre tipos
-- **Para investigar la causa:**
-    - ¿Qué operación se resuelve preguntando el tipo?
-    - ¿Qué se toca cada vez que aparece un tipo o caso nuevo?
-    - ¿El comportamiento podría vivir en la propia jerarquía de tipos?
+- **Tu resultado:** **0** clase(s) con switch sobre tipos
 
 ### 12. Interfaz con demasiados métodos (ISP) (isp) — sin señales
 
@@ -185,29 +166,25 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 ### 14. Dependencia de concretos y falta de abstracciones (DIP) (dip) — con señales
 
-- **Qué mide:** Instanciación directa de clases concretas y ausencia de interfaces o clases abstractas pese al acoplamiento.
+- **Qué mide:** Instanciación directa de clases **propias** concretas y ausencia de interfaces o clases abstractas pese al acoplamiento. No cuentan los structs ni los nodos/tipos del motor.
 - **Por qué importa:** Depender de implementaciones concretas dificulta cambiar o probar una parte sin arrastrar las demás.
-- **Tu resultado:** **19** dependencia(s) de concretos sin abstracciones
+- **Tu resultado:** **38** dependencia(s) de concretos sin abstracciones
 - **Para investigar la causa:**
     - ¿La clase crea por dentro a sus colaboradores en vez de recibirlos?
     - ¿Hay puntos de variación que convendría expresar como abstracción?
     - ¿Cómo se probaría esa clase cambiando una implementación?
 
-### 15. Clase sin métodos (solo datos) (data) — con señales
+### 15. Clase sin métodos (solo datos) (data) — sin señales
 
 - **Qué mide:** Clases que solo acumulan campos y no tienen comportamiento.
 - **Por qué importa:** Separar datos de comportamiento reparte por el proyecto la lógica que debería estar cerca de esos datos.
-- **Tu resultado:** **26** clase(s) sin métodos (solo datos)
-- **Para investigar la causa:**
-    - ¿Dónde vive el comportamiento que opera sobre esos datos?
-    - ¿La clase representa un concepto del dominio o un contenedor técnico?
-    - ¿Se evita la lógica de negocio dentro de la clase por comodidad?
+- **Tu resultado:** **0** clase(s) sin métodos (solo datos)
 
 ### 16. Campos públicos (encapsulación) (encapsulacion) — con señales
 
 - **Qué mide:** Clases que exponen campos sin control de acceso.
 - **Por qué importa:** Expone el estado interno y hace que cualquier cambio dependa de quién lo modifica desde afuera.
-- **Tu resultado:** **19** clase(s) con campos públicos
+- **Tu resultado:** **10** clase(s) con campos públicos
 - **Para investigar la causa:**
     - ¿Se accede al campo desde otras clases para evitar un método?
     - ¿Qué reglas deberían respetarse al modificar ese estado?
