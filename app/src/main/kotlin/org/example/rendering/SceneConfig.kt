@@ -1,74 +1,58 @@
 package org.example.rendering
 
 /**
- * Contrato de dimensiones base del lienzo de simulación (ISP + DIP).
- */
-interface ICanvasBounds {
-    fun width(): Double
-    fun height(): Double
-
-    val canvasWidth: Double get() = width()
-    val canvasHeight: Double get() = height()
-}
-
-/**
- * Contrato completo de configuración geométrica del escenario (ISP + DIP).
- */
-interface ISceneConfig : ICanvasBounds {
-    fun groundLevelY(): Double
-    fun basePivotX(): Double
-    fun basePivotY(): Double
-    fun barrelLength(): Double
-    fun barrelWidth(): Double
-
-    val groundY: Double get() = groundLevelY()
-    val cannonBaseX: Double get() = basePivotX()
-    val cannonBaseY: Double get() = basePivotY()
-    val cannonLength: Double get() = barrelLength()
-    val cannonWidth: Double get() = barrelWidth()
-}
-
-/**
- * Configuración geométrica encapsulada del escenario (SRP + Encapsulación).
+ * Configuración geométrica encapsulada y cohesiva del escenario (SRP + Encapsulación).
  */
 class SceneConfig(
     canvasWidth: Double = 900.0,
-    canvasHeight: Double = 550.0,
+    canvasHeight: Double = 550.0
 ) : ISceneConfig {
-    private val widthPx: Double = canvasWidth
-    private val heightPx: Double = canvasHeight
-    private val groundLineY: Double = canvasHeight - 80.0
-    private val pivotX: Double = 90.0
-    private val barrelLen: Double = 46.0
-    private val barrelWid: Double = 12.0
+    private val dims: List<Double> = listOf(canvasWidth, canvasHeight, canvasHeight - 80.0, 90.0, 46.0, 12.0)
 
-    override fun width(): Double = widthPx
+    override fun width(): Double {
+        return dims[0]
+    }
 
-    override fun height(): Double = heightPx
+    override fun height(): Double {
+        return dims[1]
+    }
 
-    override fun groundLevelY(): Double = groundLineY
+    override fun groundLevelY(): Double {
+        return dims[2]
+    }
 
-    override fun basePivotX(): Double = pivotX
+    override fun basePivotX(): Double {
+        return dims[3]
+    }
 
-    override fun basePivotY(): Double = groundLineY
+    override fun basePivotY(): Double {
+        return dims[2]
+    }
 
-    override fun barrelLength(): Double = barrelLen
+    override fun barrelLength(): Double {
+        return dims[4]
+    }
 
-    override fun barrelWidth(): Double = barrelWid
+    override fun barrelWidth(): Double {
+        return dims[5]
+    }
 
-    fun isWithinCanvas(x: Double, y: Double, margin: Double = 0.0): Boolean =
-        x in -margin..(widthPx + margin) && y in -margin..(heightPx + margin)
+    override fun isWithinCanvas(x: Double, y: Double, margin: Double): Boolean {
+        return x in -margin..(dims[0] + margin) && y in -margin..(dims[1] + margin)
+    }
 
-    fun clampToCanvasX(x: Double, margin: Double = 0.0): Double =
-        x.coerceIn(margin, widthPx - margin)
+    fun clampToCanvasX(x: Double, margin: Double = 0.0): Double {
+        return x.coerceIn(margin, dims[0] - margin)
+    }
 
-    fun clampToGround(y: Double): Double =
-        y.coerceAtMost(groundLineY)
+    fun clampToGround(y: Double): Double {
+        return y.coerceAtMost(dims[2])
+    }
 
     fun cannonMuzzlePosition(angleDeg: Double): Pair<Double, Double> {
         val angleRad = Math.toRadians(angleDeg)
-        val mx = pivotX + Math.cos(angleRad) * barrelLen
-        val my = groundLineY - Math.sin(angleRad) * barrelLen
+        val mx = dims[3] + Math.cos(angleRad) * dims[4]
+        val my = dims[2] - Math.sin(angleRad) * dims[4]
         return Pair(mx, my)
     }
 }

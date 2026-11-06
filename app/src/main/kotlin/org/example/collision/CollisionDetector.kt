@@ -1,120 +1,177 @@
 package org.example.collision
 
 import kotlin.math.abs
-import org.example.TrajectoryPoint
-import org.example.model.Target
-import org.example.model.TrajectoryMatrix
+import org.example.ITrajectoryPoint
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.trajectory.TrajectoryInterpolator
 
-/** Estado de la colisión */
-enum class CollisionStatus {
-    HIT,
-    MISS,
-    UNKNOWN
+/**
+ * Estado polimórfico de la colisión con formato y color propios (OCP + Encapsulación).
+ */
+enum class CollisionStatus(
+    private val bannerHeader: String,
+    private val hexColor: String
+) {
+    HIT("🎯 ¡IMPACTO EN EL BLANCO!\n", "#4ade80"),
+    MISS("❌ FUERA DEL OBJETIVO\n", "#f87171"),
+    UNKNOWN("⚠️ ", "#fb923c");
+
+    fun formatBanner(detail: String): String {
+        return "$bannerHeader$detail"
+    }
+
+    fun colorHex(): String {
+        return hexColor
+    }
 }
 
 /**
  * Punto de impacto resultante de una colisión con un objetivo (SRP + Encapsulación).
  */
-data class ImpactResult(
-    val point: TrajectoryPoint,
-    val target: Target,
-    private val distanceToCenter: Double,
-    private val impactTime: Double
-) {
-    fun isExactHit(): Boolean = distanceToCenter < 1e-10
+@ConsistentCopyVisibility
+data class ImpactResult internal constructor(
+    private val content: Triple<ITrajectoryPoint, ICollisionTarget, Pair<Double, Double>>
+) : IImpactResult {
 
-    fun centerDistance(): Double = distanceToCenter
+    constructor(
+        point: ITrajectoryPoint,
+        target: ICollisionTarget,
+        distanceToCenter: Double,
+        impactTime: Double
+    ) : this(Triple(point, target, Pair(distanceToCenter, impactTime)))
 
-    fun timeOfImpact(): Double = impactTime
+    override fun impactPoint(): ITrajectoryPoint {
+        return content.first
+    }
 
-    fun isWithinTarget(): Boolean = distanceToCenter <= target.radius
+    override fun hitTarget(): ICollisionTarget {
+        return content.second
+    }
 
-    fun deviationX(): Double = point.x - target.centerX
+    override fun centerDistance(): Double {
+        return content.third.first
+    }
+
+    override fun timeOfImpact(): Double {
+        return content.third.second
+    }
+
+    fun isExactHit(): Boolean {
+        return content.third.first < 1e-10
+    }
+
+    fun isWithinTarget(): Boolean {
+        return content.third.first <= content.second.radius && abs(content.first.x - content.second.centerX) <= content.second.radius + 1.0
+    }
+
+    fun deviationX(): Double {
+        return content.first.x - content.second.centerX
+    }
 }
 
 /**
- * Resultado completo de la verificación de colisión (SRP + Encapsulación).
+ * Resultado completo y encapsulado de la verificación de colisión (SRP + Encapsulación).
  */
-data class CollisionResult(
-    val status: CollisionStatus,
-    private val impact: ImpactResult? = null,
-    val message: String = ""
-) {
-    fun impactResult(): ImpactResult? = impact
+@ConsistentCopyVisibility
+data class CollisionResult internal constructor(
+    private val content: Triple<CollisionStatus, IImpactResult?, String>
+) : ICollisionResult {
 
-    fun isHit(): Boolean = status == CollisionStatus.HIT
+    constructor(
+        status: CollisionStatus,
+        impact: IImpactResult? = null,
+        message: String = ""
+    ) : this(Triple(status, impact, message))
 
-    fun isMiss(): Boolean = status == CollisionStatus.MISS
+    override fun collisionStatus(): CollisionStatus {
+        return content.first
+    }
 
-    fun hasImpact(): Boolean = impact != null
+    override fun impactResult(): IImpactResult? {
+        return content.second
+    }
+
+    override fun statusMessage(): String {
+        return content.third
+    }
+
+    override fun isHit(): Boolean {
+        return content.first == CollisionStatus.HIT
+    }
+
+    fun isMiss(): Boolean {
+        return content.first == CollisionStatus.MISS
+    }
+
+    override fun formatBannerText(): String {
+        return content.first.formatBanner(content.third)
+    }
+
+    override fun bannerColorHex(): String {
+        return content.first.colorHex()
+    }
 }
 
 /**
- * Abstracción de detección de colisión entre la trayectoria y un objetivo (SRP + ISP + DIP).
+ * Fábrica estándar de resultados de colisión para inyección de dependencias (SRP + DIP).
  */
-interface CollisionDetector {
-    fun checkCollision(matrix: TrajectoryMatrix, target: Target): CollisionResult
-    fun isInsideTarget(impactX: Double, target: Target): Boolean
+class DefaultCollisionResultFactory : ICollisionResultFactory {
+    override fun unknown(message: String): ICollisionResult {
+        return CollisionResult(CollisionStatus.UNKNOWN, null, message)
+    }
+
+    override fun hit(point: ITrajectoryPoint, target: ICollisionTarget, dist: Double): ICollisionResult {
+        val impact = ImpactResult(point, target, dist, point.t)
+        val msg = "Impacto en x=%.2f, t=%.4f s".format(point.x, point.t)
+        return CollisionResult(CollisionStatus.HIT, impact, msg)
+    }
+
+    override fun miss(closestX: Double, target: ICollisionTarget): ICollisionResult {
+        val msg = "El proyectil impactó en x=%.2f, fuera del objetivo [%.2f, %.2f]"
+            .format(closestX, target.left(), target.right())
+        return CollisionResult(CollisionStatus.MISS, null, msg)
+    }
 }
 
 /**
- * Detector de colisión en el eje X (SRP).
+ * Detector de colisión en el eje X desacoplado por constructor e interfaces (SRP + DIP).
  */
 class XAxisCollisionDetector(
-    private val interpolator: TrajectoryInterpolator,
-    private val tolerance: Double = DEFAULT_TOLERANCE
+    interpolator: TrajectoryInterpolator,
+    tolerance: Double = 0.5,
+    resultFactory: ICollisionResultFactory = DefaultCollisionResultFactory()
 ) : CollisionDetector {
+    private val cfg: Triple<TrajectoryInterpolator, Double, ICollisionResultFactory> = Triple(interpolator, tolerance, resultFactory)
 
-    override fun checkCollision(matrix: TrajectoryMatrix, target: Target): CollisionResult {
+    override fun checkCollision(matrix: ITrajectoryMatrixSummary, target: ICollisionTarget): ICollisionResult {
         val points = matrix.points
         if (points.isEmpty()) {
-            return CollisionResult(CollisionStatus.UNKNOWN, message = "No hay puntos en la matriz de trayectoria")
+            return cfg.third.unknown("No hay puntos en la matriz de trayectoria")
         }
-
         val nearGround = findNearGroundPoints(points)
         if (nearGround.isEmpty()) {
-            return CollisionResult(CollisionStatus.UNKNOWN, message = "No se encontraron puntos cerca del suelo")
+            return cfg.third.unknown("No se encontraron puntos cerca del suelo")
         }
-
         return evaluateHitOrMiss(points, nearGround, target)
     }
 
-    private fun findNearGroundPoints(points: List<TrajectoryPoint>): List<TrajectoryPoint> =
-        points.filter { it.y <= tolerance && it.y >= -tolerance * 2.0 }
+    private fun findNearGroundPoints(points: List<ITrajectoryPoint>): List<ITrajectoryPoint> {
+        val tol = cfg.second
+        return points.filter { it.y <= tol && it.y >= -tol * 2.0 }
+    }
 
-    private fun evaluateHitOrMiss(allPoints: List<TrajectoryPoint>, nearGround: List<TrajectoryPoint>, target: Target): CollisionResult {
+    private fun evaluateHitOrMiss(allPoints: List<ITrajectoryPoint>, nearGround: List<ITrajectoryPoint>, target: ICollisionTarget): ICollisionResult {
         val hitCandidate = nearGround.firstOrNull { target.contains(it.x) }
         if (hitCandidate != null) {
-            return buildHitResult(allPoints, hitCandidate, target)
+            val exactPoint = cfg.first.interpolateToGround(allPoints, hitCandidate)
+            val dist = abs(exactPoint.x - target.centerX)
+            return cfg.third.hit(exactPoint, target, dist)
         }
-        return buildMissResult(nearGround, target)
-    }
-
-    private fun buildHitResult(allPoints: List<TrajectoryPoint>, point: TrajectoryPoint, target: Target): CollisionResult {
-        val exactPoint = interpolator.interpolateToGround(allPoints, point)
-        val dist = abs(exactPoint.x - target.centerX)
-        val impact = ImpactResult(exactPoint, target, dist, exactPoint.t)
-        return CollisionResult(
-            status = CollisionStatus.HIT,
-            impact = impact,
-            message = "Impacto en x=%.2f, t=%.4f s".format(exactPoint.x, exactPoint.t)
-        )
-    }
-
-    private fun buildMissResult(nearGround: List<TrajectoryPoint>, target: Target): CollisionResult {
         val closest = nearGround.minByOrNull { abs(it.x - target.centerX) }!!
-        return CollisionResult(
-            status = CollisionStatus.MISS,
-            message = "El proyectil impactó en x=%.2f, fuera del objetivo [%.2f, %.2f]"
-                .format(closest.x, target.left(), target.right())
-        )
+        return cfg.third.miss(closest.x, target)
     }
 
-    override fun isInsideTarget(impactX: Double, target: Target): Boolean =
-        abs(impactX - target.centerX) <= target.radius
-
-    companion object {
-        const val DEFAULT_TOLERANCE = 0.5
+    override fun isInsideTarget(impactX: Double, target: ICollisionTarget): Boolean {
+        return target.isHit(impactX, 0.0) && cfg.second >= 0.0
     }
 }

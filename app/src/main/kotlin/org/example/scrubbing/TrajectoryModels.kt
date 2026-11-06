@@ -3,120 +3,91 @@ package org.example.scrubbing
 import java.util.Locale
 
 /**
- * Contrato de vista cinemática bilingüe para un punto discreto de la trayectoria (ISP + DIP).
+ * Punto discreto encapsulado sobre la curva de la trayectoria con vistas bilingües (SRP + Encapsulación).
  */
-interface ISpanishKinematicView {
-    fun coordX(): Double
-    fun coordY(): Double
-    fun timeValue(): Double
-    fun heightValue(): Double
-    fun speedValue(): Double
-
-    val x: Double get() = coordX()
-    val y: Double get() = coordY()
-    val time: Double get() = timeValue()
-    val height: Double get() = heightValue()
-    val speed: Double get() = speedValue()
-    val tiempo: Double get() = timeValue()
-    val altura: Double get() = heightValue()
-    val velocidad: Double get() = speedValue()
-}
-
-/**
- * Representa un punto discreto encapsulado sobre la curva de la trayectoria (SRP + Encapsulación).
- */
-class TrajectoryPoint(
-    x: Double,
-    y: Double,
-    time: Double,
-    height: Double = y,
-    speed: Double
+@ConsistentCopyVisibility
+data class TrajectoryPoint internal constructor(
+    private val values: List<Double>
 ) : ISpanishKinematicView {
-    private val posX: Double = x
-    private val posY: Double = y
-    private val elapsed: Double = time
-    private val alt: Double = height
-    private val scalarSpeed: Double = speed
+
+    constructor(
+        x: Double,
+        y: Double,
+        time: Double,
+        height: Double = y,
+        speed: Double
+    ) : this(listOf(x, y, time, height, speed))
 
     init {
-        require(time >= -1e-9) { "El tiempo transcurrido no puede ser negativo: $time" }
-        require(speed >= 0.0) { "La velocidad escalar no puede ser negativa: $speed" }
+        require(values[2] >= -1e-9) { "El tiempo transcurrido no puede ser negativo: ${values[2]}" }
+        require(values[4] >= 0.0) { "La velocidad escalar no puede ser negativa: ${values[4]}" }
     }
 
-    override fun coordX(): Double = posX
+    override fun coordX(): Double {
+        return values[0]
+    }
 
-    override fun coordY(): Double = posY
+    override fun coordY(): Double {
+        return values[1]
+    }
 
-    override fun timeValue(): Double = elapsed
+    override fun timeValue(): Double {
+        return values[2]
+    }
 
-    override fun heightValue(): Double = alt
+    override fun heightValue(): Double {
+        return values[3]
+    }
 
-    override fun speedValue(): Double = scalarSpeed
+    override fun speedValue(): Double {
+        return values[4]
+    }
 
-    fun formatTelemetry(): String =
-        String.format(Locale.US, "v = %.2f m/s, h = %.2f m (t = %.2f s)", scalarSpeed, alt, elapsed)
-
-    private fun components(): List<Double> = listOf(posX, posY, elapsed, alt, scalarSpeed)
-
-    override fun equals(other: Any?): Boolean = other is TrajectoryPoint && components() == other.components()
-
-    override fun hashCode(): Int = components().hashCode()
-
-    override fun toString(): String =
-        String.format(Locale.US, "TrajectoryPoint(x=%.2f, y=%.2f, t=%.2f, v=%.2f)", posX, posY, elapsed, scalarSpeed)
+    override fun formatTelemetry(): String {
+        return String.format(Locale.US, "v = %.2f m/s, h = %.2f m (t = %.2f s)", values[4], values[3], values[2])
+    }
 
     companion object {
-        fun of(x: Double, y: Double, tiempo: Double, velocidad: Double): TrajectoryPoint =
-            TrajectoryPoint(x = x, y = y, time = tiempo, height = y, speed = velocidad)
+        fun of(x: Double, y: Double, tiempo: Double, velocidad: Double): TrajectoryPoint {
+            return TrajectoryPoint(x, y, tiempo, y, velocidad)
+        }
     }
 }
 
 /**
- * Contrato bilingüe para métricas finales del vuelo (ISP + DIP).
+ * Resumen consolidado y encapsulado del vuelo tras impactar en el suelo (SRP + Encapsulación).
  */
-interface ISpanishFlightSummaryView {
-    fun flightTimeSeconds(): Double
-    fun rangeMeters(): Double
-
-    val totalFlightTime: Double get() = flightTimeSeconds()
-    val totalDistance: Double get() = rangeMeters()
-    val tiempoTotalCaida: Double get() = flightTimeSeconds()
-    val distanciaRecorrida: Double get() = rangeMeters()
-}
-
-/**
- * Resumen consolidado encapsulado del vuelo del proyectil tras impactar en el suelo (SRP + Encapsulación).
- */
-class FlightSummary(
-    totalFlightTime: Double,
-    totalDistance: Double
+@ConsistentCopyVisibility
+data class FlightSummary internal constructor(
+    private val values: List<Double>
 ) : ISpanishFlightSummaryView {
-    private val flightTime: Double = totalFlightTime
-    private val distance: Double = totalDistance
+
+    constructor(totalFlightTime: Double, totalDistance: Double) : this(listOf(totalFlightTime, totalDistance))
 
     init {
-        require(totalFlightTime >= 0.0) { "El tiempo total de vuelo no puede ser negativo: $totalFlightTime" }
-        require(totalDistance >= 0.0) { "La distancia total recorrida no puede ser negativa: $totalDistance" }
+        require(values[0] >= 0.0) { "El tiempo total de vuelo no puede ser negativo: ${values[0]}" }
+        require(values[1] >= 0.0) { "La distancia total recorrida no puede ser negativa: ${values[1]}" }
     }
 
-    override fun flightTimeSeconds(): Double = flightTime
+    override fun flightTimeSeconds(): Double {
+        return values[0]
+    }
 
-    override fun rangeMeters(): Double = distance
+    override fun rangeMeters(): Double {
+        return values[1]
+    }
 
-    fun formattedTime(): String = String.format(Locale.US, "%.2f s", flightTime)
+    override fun formattedTime(): String {
+        return String.format(Locale.US, "%.2f s", values[0])
+    }
 
-    fun formattedDistance(): String = String.format(Locale.US, "%.2f m", distance)
-
-    override fun equals(other: Any?): Boolean =
-        other is FlightSummary && flightTime == other.flightTime && distance == other.distance
-
-    override fun hashCode(): Int = listOf(flightTime, distance).hashCode()
-
-    override fun toString(): String =
-        String.format(Locale.US, "FlightSummary(tiempo=%.2f s, distancia=%.2f m)", flightTime, distance)
+    override fun formattedDistance(): String {
+        return String.format(Locale.US, "%.2f m", values[1])
+    }
 
     companion object {
-        fun of(tiempoTotalCaida: Double, distanciaRecorrida: Double): FlightSummary =
-            FlightSummary(totalFlightTime = tiempoTotalCaida, totalDistance = distanciaRecorrida)
+        fun of(tiempoTotalCaida: Double, distanciaRecorrida: Double): FlightSummary {
+            return FlightSummary(tiempoTotalCaida, distanciaRecorrida)
+        }
     }
 }

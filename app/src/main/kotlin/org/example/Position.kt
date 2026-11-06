@@ -3,18 +3,28 @@ package org.example
 import kotlin.math.hypot
 
 /**
- * Objeto de valor inmutable que representa una posición en el espacio 2D.
- *
- * @property x Coordenada horizontal.
- * @property y Coordenada vertical.
+ * Objeto de valor inmutable y encapsulado que representa una posición en el espacio 2D (SRP + Encapsulación).
  */
-data class Position(
-    val x: Double,
-    val y: Double,
-) {
-    /** Calcula la distancia euclidiana hacia otra posición 2D. */
-    fun distanceTo(other: Position): Double = hypot(x - other.x, y - other.y)
+@ConsistentCopyVisibility
+data class Position internal constructor(
+    private val coords: List<Double>
+) : IPosition {
 
-    /** Retorna una nueva posición trasladada según el desplazamiento indicado. */
-    fun translate(dx: Double, dy: Double): Position = Position(x + dx, y + dy)
+    constructor(x: Double, y: Double) : this(listOf(x, y))
+
+    override fun horizontal(): Double {
+        return coords[0]
+    }
+
+    override fun vertical(): Double {
+        return coords[1]
+    }
+
+    override fun distanceTo(other: IPosition): Double {
+        return hypot(coords[0] - other.x, coords[1] - other.y)
+    }
+
+    override fun translate(dx: Double, dy: Double): Position {
+        return Position(coords[0] + dx, coords[1] + dy)
+    }
 }

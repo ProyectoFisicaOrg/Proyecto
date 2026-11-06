@@ -7,20 +7,31 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import org.example.collision.CollisionDetector
 import org.example.collision.CollisionStatus
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.model.Target
 import org.example.model.TrajectoryMatrix
+import org.example.trajectory.TrajectorySearcher
 
 /**
  * Pruebas unitarias de generación cinemática de la matriz de trayectoria (SRP).
  */
-class TrajectoryMatrixTest {
+class TrajectoryMatrixTest : ISimulationTestSuite {
 
-    private val testParams = PhysicsParams(angleDeg = 45.0, initialVelocity = 20.0, gravity = 9.8, mass = 1.0)
-    private val generator = TrajectorySimulationFactory.createGenerator()
+    private val builder: TestParamsBuilderA = TestParamsBuilderA()
 
-    private fun generate(params: PhysicsParams = testParams, samples: Int = 120): TrajectoryMatrix =
-        generator.generate(params, samples)
+    override fun suiteName(): String {
+        return "TrajectoryMatrixTest"
+    }
+
+    private fun defaultParams(): IPhysicsParams {
+        return builder.params()
+    }
+
+    private fun generate(samples: Int = 120): ITrajectoryMatrixSummary {
+        return builder.kinematics().generator().generate(defaultParams(), samples)
+    }
 
     @Test
     fun test_generator_creates_matrix_with_correct_number_of_points() {
@@ -30,19 +41,19 @@ class TrajectoryMatrixTest {
 
     @Test
     fun test_generator_stores_correct_time_of_flight() {
-        val expected = TrajectorySimulationFactory.createCalculator().calculateTimeOfFlight(testParams)!!
+        val expected = builder.kinematics().calculator().calculateTimeOfFlight(defaultParams())!!
         assertEquals(expected, generate().timeOfFlight, 1e-10)
     }
 
     @Test
     fun test_generator_stores_correct_range() {
-        val expected = TrajectorySimulationFactory.createCalculator().calculateRange(testParams)!!
+        val expected = builder.kinematics().calculator().calculateRange(defaultParams())!!
         assertEquals(expected, generate().range, 1e-10)
     }
 
     @Test
     fun test_generator_stores_correct_max_height() {
-        val expected = TrajectorySimulationFactory.createCalculator().calculateMaxHeight(testParams)
+        val expected = builder.kinematics().calculator().calculateMaxHeight(defaultParams())
         assertEquals(expected, generate().maxHeight, 1e-10)
     }
 
@@ -75,17 +86,24 @@ class TrajectoryMatrixTest {
 /**
  * Pruebas unitarias de búsqueda binaria y consultas sobre TrajectoryMatrix (SRP).
  */
-class TrajectorySearchAndQueryTest {
+class TrajectorySearchAndQueryTest : ISimulationTestSuite {
 
-    private val testParams = PhysicsParams(angleDeg = 45.0, initialVelocity = 20.0, gravity = 9.8, mass = 1.0)
-    private val generator = TrajectorySimulationFactory.createGenerator()
-    private val searcher = TrajectorySimulationFactory.createSearcher()
+    private val fixture: Pair<TrajectorySearcher, TestParamsBuilderA> = Pair(
+        DefaultSearcherBuilder().buildSearcher(),
+        TestParamsBuilderA()
+    )
 
-    private fun generate(samples: Int = 120): TrajectoryMatrix = generator.generate(testParams, samples)
+    override fun suiteName(): String {
+        return "TrajectorySearchAndQueryTest"
+    }
+
+    private fun generate(samples: Int = 120): ITrajectoryMatrixSummary {
+        return fixture.second.kinematics().generator().generate(fixture.second.params(), samples)
+    }
 
     @Test
     fun test_findClosestByX_returns_correct_point() {
-        val closest = searcher.findClosestByX(generate(100).points, 10.0)
+        val closest = fixture.first.findClosestByX(generate(100).points, 10.0)
         assertTrue(abs(closest.x - 10.0) < 0.5)
     }
 
@@ -93,25 +111,25 @@ class TrajectorySearchAndQueryTest {
     fun test_findClosestByX_at_exact_point_returns_that_point() {
         val matrix = generate(100)
         val targetX = matrix.points[matrix.size / 2].x
-        assertEquals(targetX, searcher.findClosestByX(matrix.points, targetX).x, 1e-10)
+        assertEquals(targetX, fixture.first.findClosestByX(matrix.points, targetX).x, 1e-10)
     }
 
     @Test
     fun test_findClosestByX_at_start_returns_first_point() {
         val matrix = generate()
-        assertEquals(matrix.points.first().x, searcher.findClosestByX(matrix.points, 0.0).x, 1e-10)
+        assertEquals(matrix.points.first().x, fixture.first.findClosestByX(matrix.points, 0.0).x, 1e-10)
     }
 
     @Test
     fun test_findClosestByX_at_end_returns_last_point() {
         val matrix = generate()
-        assertEquals(matrix.points.last().x, searcher.findClosestByX(matrix.points, matrix.range).x, 1e-10)
+        assertEquals(matrix.points.last().x, fixture.first.findClosestByX(matrix.points, matrix.range).x, 1e-10)
     }
 
     @Test
     fun test_findClosestIndexByX_returns_a_valid_index() {
         val matrix = generate(100)
-        assertTrue(searcher.findClosestIndexByX(matrix.points, 10.0) in 0 until matrix.size)
+        assertTrue(fixture.first.findClosestIndexByX(matrix.points, 10.0) in 0 until matrix.size)
     }
 
     @Test
@@ -139,18 +157,25 @@ class TrajectorySearchAndQueryTest {
 /**
  * Pruebas unitarias de detección de colisión contra el objetivo en suelo (SRP).
  */
-class TrajectoryCollisionDetectionTest {
+class TrajectoryCollisionDetectionTest : ISimulationTestSuite {
 
-    private val testParams = PhysicsParams(angleDeg = 45.0, initialVelocity = 20.0, gravity = 9.8, mass = 1.0)
-    private val generator = TrajectorySimulationFactory.createGenerator()
-    private val collisionDetector = TrajectorySimulationFactory.createCollisionDetector()
+    private val fixture: Pair<CollisionDetector, TestParamsBuilderA> = Pair(
+        DefaultCollisionBuilder().buildCollisionDetector(),
+        TestParamsBuilderA()
+    )
 
-    private fun generate(): TrajectoryMatrix = generator.generate(testParams, 120)
+    override fun suiteName(): String {
+        return "TrajectoryCollisionDetectionTest"
+    }
+
+    private fun generate(): ITrajectoryMatrixSummary {
+        return fixture.second.kinematics().generator().generate(fixture.second.params(), 120)
+    }
 
     @Test
     fun test_checkCollision_returns_HIT_when_target_is_at_impact_point() {
         val matrix = generate()
-        val collision = collisionDetector.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
         assertEquals(CollisionStatus.HIT, collision.status)
         val impact = collision.impactResult()
         assertNotNull(impact)
@@ -160,14 +185,14 @@ class TrajectoryCollisionDetectionTest {
     @Test
     fun test_checkCollision_returns_MISS_when_target_is_far_from_impact() {
         val matrix = generate()
-        val collision = collisionDetector.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
         assertEquals(CollisionStatus.MISS, collision.status)
     }
 
     @Test
     fun test_checkCollision_with_wide_target_near_impact_always_hits() {
         val matrix = generate()
-        val collision = collisionDetector.checkCollision(matrix, Target(centerX = matrix.range, radius = 50.0))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 50.0))
         assertEquals(CollisionStatus.HIT, collision.status)
     }
 
@@ -175,7 +200,7 @@ class TrajectoryCollisionDetectionTest {
     fun test_impact_result_exposes_correct_target_info() {
         val matrix = generate()
         val target = Target(centerX = matrix.range, radius = 2.0)
-        val collision = collisionDetector.checkCollision(matrix, target)
+        val collision = fixture.first.checkCollision(matrix, target)
         assertEquals(CollisionStatus.HIT, collision.status)
         assertEquals(target, collision.impactResult()?.target)
     }
@@ -183,36 +208,36 @@ class TrajectoryCollisionDetectionTest {
     @Test
     fun test_isInsideTarget_returns_true_when_inside() {
         val target = Target(centerX = 50.0, radius = 2.0)
-        assertTrue(collisionDetector.isInsideTarget(50.0, target))
-        assertTrue(collisionDetector.isInsideTarget(51.0, target))
-        assertTrue(collisionDetector.isInsideTarget(49.0, target))
+        assertTrue(fixture.first.isInsideTarget(50.0, target))
+        assertTrue(fixture.first.isInsideTarget(51.0, target))
+        assertTrue(fixture.first.isInsideTarget(49.0, target))
     }
 
     @Test
     fun test_isInsideTarget_returns_false_when_outside() {
         val target = Target(centerX = 50.0, radius = 2.0)
-        assertFalse(collisionDetector.isInsideTarget(55.0, target))
-        assertFalse(collisionDetector.isInsideTarget(45.0, target))
+        assertFalse(fixture.first.isInsideTarget(55.0, target))
+        assertFalse(fixture.first.isInsideTarget(45.0, target))
     }
 
     @Test
     fun test_isInsideTarget_returns_true_at_exact_boundary() {
         val target = Target(centerX = 50.0, radius = 2.0)
-        assertTrue(collisionDetector.isInsideTarget(52.0, target))
-        assertTrue(collisionDetector.isInsideTarget(48.0, target))
+        assertTrue(fixture.first.isInsideTarget(52.0, target))
+        assertTrue(fixture.first.isInsideTarget(48.0, target))
     }
 
     @Test
     fun test_collision_message_contains_useful_info_on_HIT() {
         val matrix = generate()
-        val collision = collisionDetector.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
         assertTrue(collision.message.contains("Impacto") && collision.message.contains("x=") && collision.message.contains("t="))
     }
 
     @Test
     fun test_collision_message_contains_useful_info_on_MISS() {
         val matrix = generate()
-        val collision = collisionDetector.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
         assertTrue(collision.message.contains("fuera del objetivo"))
     }
 }
@@ -220,10 +245,13 @@ class TrajectoryCollisionDetectionTest {
 /**
  * Pruebas unitarias de invariantes, validaciones de dominio y variación paramétrica (SRP).
  */
-class TrajectoryDomainValidationTest {
+class TrajectoryDomainValidationTest : ISimulationTestSuite {
 
-    private val testParams = PhysicsParams(angleDeg = 45.0, initialVelocity = 20.0, gravity = 9.8, mass = 1.0)
-    private val generator = TrajectorySimulationFactory.createGenerator()
+    private val fixture: Pair<TestParamsBuilderA, TestPointBuilder> = Pair(TestParamsBuilderA(), TestPointBuilder())
+
+    override fun suiteName(): String {
+        return "TrajectoryDomainValidationTest"
+    }
 
     @Test
     fun test_matrix_rejects_empty_points_list() {
@@ -235,21 +263,21 @@ class TrajectoryDomainValidationTest {
     @Test
     fun test_matrix_rejects_negative_time_of_flight() {
         assertFailsWith<IllegalArgumentException> {
-            TrajectoryMatrix(listOf(TrajectoryPoint(0.0, 0.0, 1.0, 1.0, 0.0)), -1.0, 0.0, 0.0)
+            TrajectoryMatrix(listOf(fixture.second.originPoint(0.0, 0.0, 1.0, 1.0)), -1.0, 0.0, 0.0)
         }
     }
 
     @Test
     fun test_generator_throws_on_horizontal_launch() {
         assertFailsWith<IllegalArgumentException> {
-            generator.generate(testParams.copy(angleDeg = 0.0), 120)
+            fixture.first.kinematics().generator().generate(fixture.first.params(angleDeg = 0.0), 120)
         }
     }
 
     @Test
     fun test_generator_throws_on_negative_samples_per_second() {
         assertFailsWith<IllegalArgumentException> {
-            generator.generate(testParams, 0)
+            fixture.first.kinematics().generator().generate(fixture.first.params(), 0)
         }
     }
 
@@ -263,7 +291,7 @@ class TrajectoryDomainValidationTest {
     @Test
     fun test_matrix_works_with_different_angles() {
         for (angle in listOf(15.0, 30.0, 45.0, 60.0, 75.0)) {
-            val matrix = generator.generate(testParams.copy(angleDeg = angle), 120)
+            val matrix = fixture.first.kinematics().generator().generate(fixture.first.params(angleDeg = angle), 120)
             assertTrue(matrix.size > 0 && matrix.timeOfFlight > 0 && matrix.range > 0 && matrix.maxHeight > 0)
         }
     }
@@ -271,7 +299,7 @@ class TrajectoryDomainValidationTest {
     @Test
     fun test_matrix_works_with_different_velocities() {
         for (v0 in listOf(5.0, 10.0, 20.0, 50.0)) {
-            val matrix = generator.generate(testParams.copy(initialVelocity = v0), 120)
+            val matrix = fixture.first.kinematics().generator().generate(fixture.first.params(initialVelocity = v0), 120)
             assertTrue(matrix.size > 0 && matrix.timeOfFlight > 0 && matrix.range > 0)
         }
     }

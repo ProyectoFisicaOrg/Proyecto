@@ -1,37 +1,51 @@
 package org.example.model
 
 import kotlin.math.abs
+import org.example.collision.ICollisionTarget
 
 /**
  * Objetivo circular desplazable sobre el suelo (SRP + Encapsulación).
- *
- * @param centerX Posición X del centro del objetivo en el suelo (metros)
- * @param radius Radio del objetivo (metros)
  */
-data class Target(
-    val centerX: Double,
-    val radius: Double
-) {
+@ConsistentCopyVisibility
+data class Target internal constructor(
+    private val specs: List<Double>
+) : ICollisionTarget {
+
+    constructor(centerX: Double, radius: Double) : this(listOf(centerX, radius))
+
     init {
-        require(radius >= 0) { "El radio no puede ser negativo" }
+        require(specs[1] >= 0.0) { "El radio no puede ser negativo" }
     }
 
-    /** Borde izquierdo del objetivo */
-    fun left(): Double = centerX - radius
+    override fun centerPosition(): Double {
+        return specs[0]
+    }
 
-    /** Borde derecho del objetivo */
-    fun right(): Double = centerX + radius
+    override fun radiusMeters(): Double {
+        return specs[1]
+    }
 
-    /** Diámetro del objetivo */
-    fun diameter(): Double = 2.0 * radius
+    override fun left(): Double {
+        return specs[0] - specs[1]
+    }
 
-    /** Determina si una coordenada horizontal x cae dentro del objetivo. */
-    fun contains(x: Double): Boolean = x in left()..right()
+    override fun right(): Double {
+        return specs[0] + specs[1]
+    }
 
-    /** Calcula la distancia horizontal absoluta desde una coordenada x al centro del objetivo. */
-    fun distanceToCenter(x: Double): Double = abs(x - centerX)
+    fun diameter(): Double {
+        return 2.0 * specs[1]
+    }
 
-    /** Determina si un punto de impacto impacta en el blanco dentro de una tolerancia. */
-    fun isHit(impactX: Double, tolerance: Double = 0.0): Boolean =
-        distanceToCenter(impactX) <= (radius + tolerance)
+    override fun contains(x: Double): Boolean {
+        return x in left()..right()
+    }
+
+    fun distanceToCenter(x: Double): Double {
+        return abs(x - specs[0])
+    }
+
+    override fun isHit(impactX: Double, tolerance: Double): Boolean {
+        return distanceToCenter(impactX) <= (specs[1] + tolerance)
+    }
 }

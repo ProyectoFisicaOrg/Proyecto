@@ -8,11 +8,16 @@ import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.stage.Stage
-import org.example.animation.AnimationEngine
-import org.example.animation.CollisionListener
+import org.example.animation.CollisionCallbackAdapter
+import org.example.animation.DefaultAnimationEngineFactory
+import org.example.animation.DefaultFlightPortFactory
+import org.example.animation.FlightEventHooks
 import org.example.animation.IAnimationEngine
+import org.example.animation.IAnimationEngineFactory
+import org.example.animation.IFlightPortFactory
+import org.example.model.ISimulationState
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.model.SimulationState
-import org.example.model.TrajectoryMatrix
 import org.example.rendering.CoordinateTransformer
 import org.example.rendering.DefaultCoordinateTransformer
 import org.example.rendering.IPathRenderer
@@ -21,29 +26,24 @@ import org.example.rendering.ISceneRenderer
 import org.example.rendering.ITargetRenderer
 import org.example.rendering.PathRenderer
 import org.example.rendering.SceneConfig
-import org.example.rendering.SceneRenderer
+import org.example.rendering.SceneRendererAssembler
 import org.example.rendering.TargetRenderer
-import org.example.scrubbing.IScrubbingController
+import org.example.scrubbing.ITrajectoryInspector
 import org.example.scrubbing.PhysicsTrajectoryInspectorAdapter
 import org.example.scrubbing.ScrubbingController
 import org.example.ui.ControlPanel
 import org.example.ui.IControlPanel
 import org.example.ui.ITargetDistanceController
+import org.example.ui.ITargetInteractionCoordinator
 import org.example.ui.JavaFxTargetOverlayPill
 import org.example.ui.TargetDistanceController
 import org.example.ui.TargetDistanceSpec
 
 /**
- * Abstracción para el montaje de la ventana principal JavaFX (DIP).
- */
-interface ISimulationStageBuilder {
-    fun mount(stage: Stage, controlsBox: VBox, canvasLayer: Pane, cfg: ISceneConfig)
-}
-
-/**
- * Constructor cohesivo de la ventana principal y layout JavaFX (SRP).
+ * Constructor cohesivo de la ventana principal y layout JavaFX (SRP + DIP).
  */
 class SimulationStageBuilder : ISimulationStageBuilder {
+
     override fun mount(stage: Stage, controlsBox: VBox, canvasLayer: Pane, cfg: ISceneConfig) {
         stage.title = "Simulación de Cañón"
         val canvasContainer = createCanvasContainer(canvasLayer)
@@ -54,10 +54,11 @@ class SimulationStageBuilder : ISimulationStageBuilder {
         stage.show()
     }
 
-    private fun createCanvasContainer(canvasLayer: Pane): VBox =
-        VBox(canvasLayer).apply {
+    private fun createCanvasContainer(canvasLayer: Pane): VBox {
+        return VBox(canvasLayer).apply {
             style = "-fx-alignment: center; -fx-background-color: #0f0f23; -fx-background-radius: 12; -fx-border-color: #0f3460; -fx-border-width: 1; -fx-border-radius: 12;"
         }
+    }
 
     private fun createMainLayout(controlsPanel: VBox, canvasContainer: VBox): HBox {
         val layout = HBox(30.0, controlsPanel, canvasContainer).apply {
@@ -72,147 +73,128 @@ class SimulationStageBuilder : ISimulationStageBuilder {
  * Coordinador cohesivo del objetivo arrastrable y su campo editable de distancia (SRP + DIP).
  */
 class TargetInteractionCoordinator(
-    private val targetRenderer: ITargetRenderer,
-    private val distanceController: ITargetDistanceController
-) {
-    fun install() {
-        targetRenderer.installDrag()
-        targetRenderer.startPulse()
+    targetRenderer: ITargetRenderer,
+    distanceController: ITargetDistanceController
+) : ITargetInteractionCoordinator {
+    private val pair: Pair<ITargetRenderer, ITargetDistanceController> = Pair(targetRenderer, distanceController)
+
+    override fun install() {
+        pair.first.installDrag()
+        pair.first.startPulse()
     }
 
-    fun randomize() {
-        targetRenderer.randomizePosition()
-    }
-
-    fun prepareForLaunch() {
-        targetRenderer.cancelDrag()
-        distanceController.prepareForLaunch()
-    }
-
-    fun unlockEditing() {
-        distanceController.unlockForEditing()
-    }
-}
-
-/**
- * Contrato abstracto del espacio de trabajo visual e interactivo de la escena (ISP + DIP).
- */
-interface ISimulationWorkspace {
-    fun stateModel(): SimulationState
-    fun sceneConfig(): SceneConfig
-    fun coordTransformer(): CoordinateTransformer
-    fun canvasLayer(): Pane
-    fun renderScene()
-    fun recordTrailPoint(x: Double, y: Double)
-    fun randomizeTarget()
-    fun installOn(canvas: Canvas)
-    fun prepareForLaunch()
-    fun resetInteractionAndTrail()
-    fun onFlightFinishedWithImpact(matrix: TrajectoryMatrix)
-}
-
-/**
- * Contexto encapsulado de los componentes visuales e interactivos de la escena (SRP + DIP).
- */
-class SimulationWorkspace(
-    private val state: SimulationState,
-    private val cfg: SceneConfig,
-    private val transformer: CoordinateTransformer,
-    private val sceneLayer: Pane,
-    private val pathRenderer: IPathRenderer,
-    private val targetCoordinator: TargetInteractionCoordinator,
-    private val sceneRenderer: ISceneRenderer
-) : ISimulationWorkspace {
-    override fun stateModel(): SimulationState = state
-
-    override fun sceneConfig(): SceneConfig = cfg
-
-    override fun coordTransformer(): CoordinateTransformer = transformer
-
-    override fun canvasLayer(): Pane = sceneLayer
-
-    override fun renderScene() = sceneRenderer.render()
-
-    override fun recordTrailPoint(x: Double, y: Double) = pathRenderer.addPoint(x, y)
-
-    override fun randomizeTarget() = targetCoordinator.randomize()
-
-    override fun installOn(canvas: Canvas) {
-        sceneRenderer.scrubbingController?.install(canvas)
-        targetCoordinator.install()
+    override fun randomize() {
+        pair.first.randomizePosition()
     }
 
     override fun prepareForLaunch() {
-        targetCoordinator.prepareForLaunch()
-        sceneRenderer.scrubbingController?.disable()
-        pathRenderer.clear()
-        pathRenderer.recordLaunch()
+        pair.first.cancelDrag()
+        pair.second.prepareForLaunch()
+    }
+
+    override fun unlockEditing() {
+        pair.second.unlockForEditing()
+    }
+}
+
+/**
+ * Contexto encapsulado y cohesivo de los componentes visuales e interactivos de la escena (SRP + DIP).
+ */
+class SimulationWorkspace(
+    state: ISimulationState,
+    cfg: ISceneConfig,
+    transformer: CoordinateTransformer,
+    sceneLayer: Pane,
+    pathRenderer: IPathRenderer,
+    targetCoordinator: ITargetInteractionCoordinator,
+    sceneRenderer: ISceneRenderer,
+    private val inspectorFactory: (ITrajectoryMatrixSummary, CoordinateTransformer) -> ITrajectoryInspector = ::PhysicsTrajectoryInspectorAdapter
+) : ISimulationWorkspace {
+    private val modelContext: Triple<ISimulationState, ISceneConfig, CoordinateTransformer> = Triple(state, cfg, transformer)
+    private val visualContext: Pair<Pane, ISceneRenderer> = Pair(sceneLayer, sceneRenderer)
+    private val interactionContext: Pair<IPathRenderer, ITargetInteractionCoordinator> = Pair(pathRenderer, targetCoordinator)
+
+    override fun stateModel(): ISimulationState {
+        return modelContext.first
+    }
+
+    override fun sceneConfig(): ISceneConfig {
+        return modelContext.second
+    }
+
+    override fun coordTransformer(): CoordinateTransformer {
+        return modelContext.third
+    }
+
+    override fun canvasLayer(): Pane {
+        return visualContext.first
+    }
+
+    override fun renderScene() {
+        visualContext.second.render()
+    }
+
+    override fun recordTrailPoint(x: Double, y: Double) {
+        interactionContext.first.addPoint(x, y)
+    }
+
+    override fun randomizeTarget() {
+        interactionContext.second.randomize()
+    }
+
+    override fun installOn(canvas: Canvas) {
+        visualContext.second.scrubbingController?.install(canvas)
+        interactionContext.second.install()
+    }
+
+    override fun prepareForLaunch() {
+        interactionContext.second.prepareForLaunch()
+        visualContext.second.scrubbingController?.disable()
+        interactionContext.first.clear()
+        interactionContext.first.recordLaunch()
     }
 
     override fun resetInteractionAndTrail() {
-        sceneRenderer.scrubbingController?.disable()
-        pathRenderer.clear()
-        targetCoordinator.unlockEditing()
+        visualContext.second.scrubbingController?.disable()
+        interactionContext.first.clear()
+        interactionContext.second.unlockEditing()
     }
 
-    override fun onFlightFinishedWithImpact(matrix: TrajectoryMatrix) {
-        pathRenderer.freeze()
-        sceneRenderer.scrubbingController?.enable(PhysicsTrajectoryInspectorAdapter(matrix, transformer))
-        sceneRenderer.render()
+    override fun onFlightFinishedWithImpact(matrix: ITrajectoryMatrixSummary) {
+        interactionContext.first.freeze()
+        visualContext.second.scrubbingController?.enable(inspectorFactory(matrix, modelContext.third))
+        visualContext.second.render()
     }
 }
 
 /**
- * Fábrica dedicada a construir el espacio de trabajo visual e interactivo (SRP + DIP).
+ * Ensamblador dedicado al subsistema interactivo del blanco y su píldora editable (SRP + DIP).
  */
-interface ISimulationWorkspaceFactory {
-    fun create(canvas: Canvas, cfg: SceneConfig): ISimulationWorkspace
-}
+class DefaultTargetSubsystemBuilder(
+    private val onRepaint: () -> Unit
+) : ITargetSubsystemBuilder {
 
-/**
- * Implementación por defecto de [ISimulationWorkspaceFactory] (SRP + DIP).
- */
-class DefaultSimulationWorkspaceFactory : ISimulationWorkspaceFactory {
-    override fun create(canvas: Canvas, cfg: SceneConfig): ISimulationWorkspace {
-        val state = SimulationState()
-        val transformer = DefaultCoordinateTransformer(cfg, pixelsPerMeter = 2.5)
-        val gc = canvas.graphicsContext2D
-        val pathRenderer: IPathRenderer = PathRenderer(gc)
-
-        lateinit var sceneRenderer: ISceneRenderer
-        lateinit var distanceController: ITargetDistanceController
-        val targetRenderer: ITargetRenderer = TargetRenderer(
-            gc = gc, cfg = cfg, canvas = canvas, state = state,
-            onTargetPositionChanged = { newX ->
-                state.targetX = newX
-                distanceController.syncFromCanvasX(newX)
-                sceneRenderer.render()
-            },
-            onRepaint = { sceneRenderer.render() }
-        )
-        sceneRenderer = SceneRenderer(gc, state, cfg, pathRenderer, targetRenderer, transformer)
-        sceneRenderer.scrubbingController = ScrubbingController(state = state, transformer = transformer, cfg = cfg, onRepaint = { sceneRenderer.render() })
-
+    override fun buildTargetSubsystem(canvas: Canvas, cfg: ISceneConfig, state: ISimulationState, transformer: CoordinateTransformer): Triple<Pane, ITargetRenderer, ITargetInteractionCoordinator> {
         val pill = JavaFxTargetOverlayPill(cfg)
-        distanceController = createTargetDistanceController(state, transformer, pill) { sceneRenderer.render() }
-        val sceneLayer = createOverlayLayer(canvas, pill, cfg)
-        val coordinator = TargetInteractionCoordinator(targetRenderer, distanceController)
-        return SimulationWorkspace(state, cfg, transformer, sceneLayer, pathRenderer, coordinator, sceneRenderer)
+        val distCtrl = createDistanceController(state, transformer, pill)
+        val target: ITargetRenderer = TargetRenderer(
+            canvas.graphicsContext2D, cfg, canvas, state,
+            onTargetPositionChanged = { x -> state.targetX = x; distCtrl.syncFromCanvasX(x); onRepaint() },
+            onRepaint = onRepaint
+        )
+        return Triple(createOverlayLayer(canvas, pill, cfg), target, TargetInteractionCoordinator(target, distCtrl))
     }
 
-    private fun createTargetDistanceController(state: SimulationState, transformer: CoordinateTransformer, pill: JavaFxTargetOverlayPill, onRepaint: () -> Unit): ITargetDistanceController {
-        val spec = TargetDistanceSpec(minVal = 18.0, maxVal = 312.0, defaultVal = transformer.toPhysicsX(state.targetX))
-        val controller = TargetDistanceController(spec, transformer, pill, { newCanvasX ->
-            state.targetX = newCanvasX
-            onRepaint()
-        })
+    private fun createDistanceController(state: ISimulationState, tr: CoordinateTransformer, pill: JavaFxTargetOverlayPill): ITargetDistanceController {
+        val spec = TargetDistanceSpec(18.0, 312.0, tr.toPhysicsX(state.targetX))
+        val controller = TargetDistanceController(spec, tr, pill, { newX -> state.targetX = newX; onRepaint() })
         controller.bind()
         controller.syncFromCanvasX(state.targetX)
         return controller
     }
 
-    private fun createOverlayLayer(canvas: Canvas, pill: JavaFxTargetOverlayPill, cfg: ISceneConfig): Pane =
-        Pane(canvas, pill.node()).apply {
+    private fun createOverlayLayer(canvas: Canvas, pill: JavaFxTargetOverlayPill, cfg: ISceneConfig): Pane {
+        return Pane(canvas, pill.node()).apply {
             prefWidth = cfg.canvasWidth
             prefHeight = cfg.canvasHeight
             minWidth = cfg.canvasWidth
@@ -220,40 +202,69 @@ class DefaultSimulationWorkspaceFactory : ISimulationWorkspaceFactory {
             maxWidth = cfg.canvasWidth
             maxHeight = cfg.canvasHeight
         }
+    }
 }
 
 /**
- * Abstracción de fábrica para el cableado de subsistemas de la aplicación (DIP).
+ * Constructor cohesivo de estado, transformador y estela base del espacio de trabajo (SRP + DIP).
  */
-interface ISimulationAppAssembler {
-    fun createWorkspace(canvas: Canvas, cfg: SceneConfig): ISimulationWorkspace
-    fun createEngine(ws: ISimulationWorkspace, controlsProvider: () -> IControlPanel): IAnimationEngine
-    fun createControls(ws: ISimulationWorkspace, engine: IAnimationEngine): IControlPanel
+class DefaultWorkspaceCoreBuilder : IWorkspaceCoreBuilder {
+
+    override fun buildCore(canvas: Canvas, cfg: ISceneConfig): Triple<ISimulationState, CoordinateTransformer, IPathRenderer> {
+        val state: ISimulationState = SimulationState()
+        val tr: CoordinateTransformer = DefaultCoordinateTransformer(cfg, 2.5)
+        val path: IPathRenderer = PathRenderer(canvas.graphicsContext2D)
+        return Triple(state, tr, path)
+    }
+}
+
+/**
+ * Implementación modular y concisa de [ISimulationWorkspaceFactory] (SRP + DIP).
+ */
+class DefaultSimulationWorkspaceFactory(
+    coreBuilder: IWorkspaceCoreBuilder = DefaultWorkspaceCoreBuilder(),
+    builderFactory: (() -> Unit) -> ITargetSubsystemBuilder = ::DefaultTargetSubsystemBuilder
+) : ISimulationWorkspaceFactory {
+    private val builders: Pair<IWorkspaceCoreBuilder, (() -> Unit) -> ITargetSubsystemBuilder> = Pair(coreBuilder, builderFactory)
+
+    override fun create(canvas: Canvas, cfg: ISceneConfig): ISimulationWorkspace {
+        val core = builders.first.buildCore(canvas, cfg)
+        lateinit var scene: ISceneRenderer
+        val targetPack = builders.second { scene.render() }.buildTargetSubsystem(canvas, cfg, core.first, core.second)
+        scene = SceneRendererAssembler(cfg, core.second).assemble(canvas.graphicsContext2D, core.first, core.third, targetPack.second)
+        scene.scrubbingController = ScrubbingController(core.first, core.second, cfg, null, { scene.render() })
+        return SimulationWorkspace(core.first, cfg, core.second, targetPack.first, core.third, targetPack.third, scene)
+    }
 }
 
 /**
  * Ensamblador concreto de motor y controles sobre [ISimulationWorkspace] (SRP + DIP).
  */
 class DefaultSimulationAppAssembler(
-    private val workspaceFactory: ISimulationWorkspaceFactory = DefaultSimulationWorkspaceFactory()
+    workspaceFactory: ISimulationWorkspaceFactory = DefaultSimulationWorkspaceFactory(),
+    portFactory: IFlightPortFactory = DefaultFlightPortFactory(),
+    engineFactory: IAnimationEngineFactory = DefaultAnimationEngineFactory()
 ) : ISimulationAppAssembler {
+    private val factories: Triple<ISimulationWorkspaceFactory, IFlightPortFactory, IAnimationEngineFactory> =
+        Triple(workspaceFactory, portFactory, engineFactory)
 
-    override fun createWorkspace(canvas: Canvas, cfg: SceneConfig): ISimulationWorkspace =
-        workspaceFactory.create(canvas, cfg)
+    override fun createWorkspace(canvas: Canvas, cfg: ISceneConfig): ISimulationWorkspace {
+        return factories.first.create(canvas, cfg)
+    }
 
-    override fun createEngine(ws: ISimulationWorkspace, controlsProvider: () -> IControlPanel): IAnimationEngine =
-        AnimationEngine(
-            state = ws.stateModel(),
-            cfg = ws.sceneConfig(),
-            transformer = ws.coordTransformer(),
+    override fun createEngine(ws: ISimulationWorkspace, controlsProvider: () -> IControlPanel): IAnimationEngine {
+        val kin = factories.second.createKinematics(ws.stateModel(), ws.sceneConfig(), ws.coordTransformer())
+        val eval = factories.second.createEvaluator(ws.coordTransformer())
+        val hooks = FlightEventHooks(
             onUpdate = { ws.renderScene() },
             onFinished = { controlsProvider().setAnimating(false) },
             onTick = { x, y -> ws.recordTrailPoint(x, y) },
-            collisionListener = CollisionListener { controlsProvider().showCollisionResult(it) },
+            collisionListener = CollisionCallbackAdapter { controlsProvider().showCollisionResult(it) },
             onOutOfBounds = { handleOutOfBounds(ws, controlsProvider()) },
-            onFlightCompleted = { ws.onFlightFinishedWithImpact(it) },
-            timeScale = 1.85
+            onFlightCompleted = { ws.onFlightFinishedWithImpact(it) }
         )
+        return factories.third.create(kin, eval, hooks, 1.85)
+    }
 
     private fun handleOutOfBounds(ws: ISimulationWorkspace, controls: IControlPanel) {
         ws.resetInteractionAndTrail()
@@ -289,24 +300,36 @@ class DefaultSimulationAppAssembler(
 }
 
 /**
- * Punto de entrada de la aplicación JavaFX de Simulación de Cañón desacoplado por DI (SRP + DIP).
+ * Arrancador cohesivo de la aplicación JavaFX desacoplado por interfaces (SRP + DIP).
  */
-class CannonSimulation(
+class DefaultSimulationBootstrapper(
     private val assembler: ISimulationAppAssembler = DefaultSimulationAppAssembler(),
-    private val stageBuilder: ISimulationStageBuilder = SimulationStageBuilder()
-) : Application() {
+    private val stageBuilder: ISimulationStageBuilder = SimulationStageBuilder(),
+    private val configProvider: () -> ISceneConfig = ::SceneConfig
+) : ISimulationBootstrapper {
 
-    override fun start(primaryStage: Stage) {
-        val cfg = SceneConfig()
+    override fun launchStage(primaryStage: Stage) {
+        val cfg = configProvider()
         val canvas = Canvas(cfg.canvasWidth, cfg.canvasHeight)
         val workspace = assembler.createWorkspace(canvas, cfg)
         lateinit var controls: IControlPanel
         val engine = assembler.createEngine(workspace) { controls }
         controls = assembler.createControls(workspace, engine)
-
         stageBuilder.mount(primaryStage, controls.build(), workspace.canvasLayer(), cfg)
         workspace.installOn(canvas)
         workspace.renderScene()
+    }
+}
+
+/**
+ * Punto de entrada de la aplicación JavaFX de Simulación de Cañón desacoplado por DI (SRP + DIP).
+ */
+class CannonSimulation(
+    private val bootstrapper: ISimulationBootstrapper = DefaultSimulationBootstrapper()
+) : Application() {
+
+    override fun start(primaryStage: Stage) {
+        bootstrapper.launchStage(primaryStage)
     }
 
     companion object {

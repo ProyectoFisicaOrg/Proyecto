@@ -8,78 +8,84 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
- * Punto individual de la estela con coordenadas y marca temporal de creación.
+ * Punto individual encapsulado de la estela con coordenadas y marca temporal (SRP + Encapsulación).
  */
-data class TrailPoint(
-    val x: Double,
-    val y: Double,
+@ConsistentCopyVisibility
+data class TrailPoint internal constructor(
+    private val coords: List<Double>,
     private val timestampNano: Long
-) {
-    fun createdAtNano(): Long = timestampNano
+) : ITrailPoint {
 
-    fun distanceTo(otherX: Double, otherY: Double): Double = hypot(x - otherX, y - otherY)
+    constructor(x: Double, y: Double, timestampNano: Long) : this(listOf(x, y), timestampNano)
 
-    fun isVeryCloseTo(otherX: Double, otherY: Double): Boolean =
-        abs(x - otherX) < 0.5 && abs(y - otherY) < 0.5
+    override fun coordX(): Double {
+        return coords[0]
+    }
+
+    override fun coordY(): Double {
+        return coords[1]
+    }
+
+    override fun createdAtNano(): Long {
+        return timestampNano
+    }
+
+    fun distanceTo(otherX: Double, otherY: Double): Double {
+        return hypot(coords[0] - otherX, coords[1] - otherY)
+    }
+
+    override fun isVeryCloseTo(otherX: Double, otherY: Double): Boolean {
+        return abs(coords[0] - otherX) < 0.5 && abs(coords[1] - otherY) < 0.5
+    }
 }
 
 /**
- * Contrato abstracto para el renderizador de trayectorias (DIP).
+ * Reloj temporal encapsulado de desvanecimiento progresivo de la estela (SRP + DIP).
  */
-interface IPathRenderer {
-    var isFrozen: Boolean
-    val pointCount: Int
-    fun freeze()
-    fun unfreeze()
-    fun recordLaunch(nowNano: Long = System.nanoTime())
-    fun addPoint(x: Double, y: Double, nowNano: Long = System.nanoTime())
-    fun clear()
-    fun getPoints(): List<Pair<Double, Double>>
-    fun getTrailPoints(): List<TrailPoint>
-    fun getFadeProgress(nowNano: Long = System.nanoTime()): Double
-    fun getOpacity(nowNano: Long = System.nanoTime()): Double
-    fun getPointAlpha(point: TrailPoint, nowNano: Long = System.nanoTime()): Double
-    fun drawPath(nowNano: Long = System.nanoTime())
-}
+class TrailFadeClock(
+    fadeDelaySeconds: Double,
+    fadeDurationSeconds: Double
+) : ITrailFadeClock {
+    private val timings: Pair<Double, Double> = Pair(fadeDelaySeconds, fadeDurationSeconds)
+    private var clockState: Pair<Long, Boolean> = Pair(0L, false)
 
-/**
- * Reloj temporal de desvanecimiento progresivo de la estela (SRP).
- */
-private class TrailFadeClock(
-    private val fadeDelaySeconds: Double,
-    private val fadeDurationSeconds: Double
-) {
-    private var launchTimestampNano: Long = 0L
-    var isFrozen: Boolean = false
-
-    fun recordLaunch(nowNano: Long) {
-        launchTimestampNano = nowNano
-        isFrozen = false
+    override fun checkFrozen(): Boolean {
+        return clockState.second
     }
 
-    fun reset() {
-        launchTimestampNano = 0L
-        isFrozen = false
+    override fun updateFrozen(frozen: Boolean) {
+        clockState = Pair(clockState.first, frozen)
     }
 
-    fun computeProgress(nowNano: Long, fallbackFirstPointNano: Long): Double {
-        if (isFrozen) return 0.0
-        val launch = if (launchTimestampNano != 0L) launchTimestampNano else fallbackFirstPointNano
+    override fun recordLaunch(nowNano: Long) {
+        clockState = Pair(nowNano, false)
+    }
+
+    override fun reset() {
+        clockState = Pair(0L, false)
+    }
+
+    override fun computeProgress(nowNano: Long, fallbackFirstPointNano: Long): Double {
+        if (clockState.second) return 0.0
+        val launch = if (clockState.first != 0L) clockState.first else fallbackFirstPointNano
         if (launch == 0L) return 0.0
         val age = (nowNano - launch) / 1_000_000_000.0
-        return if (age <= fadeDelaySeconds) 0.0 else ((age - fadeDelaySeconds) / fadeDurationSeconds).coerceIn(0.0, 1.0)
+        if (age <= timings.first) return 0.0
+        return ((age - timings.first) / timings.second).coerceIn(0.0, 1.0)
     }
 }
 
 /**
- * Pintor dedicado al trazado gráfico de la estela en el contexto de JavaFX (SRP).
+ * Pintor dedicado al trazado gráfico de la estela en el contexto de JavaFX (SRP + DIP).
  */
-private class TrailStrokePainter(
-    private val gc: GraphicsContext?,
-    private val baseAlpha: Double
-) {
-    fun paint(points: List<TrailPoint>, fadeProgress: Double) {
-        val context = gc ?: return
+class TrailStrokePainter(
+    gc: GraphicsContext?,
+    baseAlpha: Double
+) : ITrailStrokePainter {
+    private val config: Pair<GraphicsContext?, Double> = Pair(gc, baseAlpha)
+
+    override fun paint(points: List<ITrailPoint>, fadeProgress: Double) {
+        val context = config.first ?: return
         context.save()
         try {
             context.lineWidth = 3.5
@@ -92,8 +98,8 @@ private class TrailStrokePainter(
         }
     }
 
-    private fun drawSolid(context: GraphicsContext, points: List<TrailPoint>) {
-        context.stroke = Color.rgb(66, 153, 225, baseAlpha)
+    private fun drawSolid(context: GraphicsContext, points: List<ITrailPoint>) {
+        context.stroke = Color.rgb(66, 153, 225, config.second)
         context.beginPath()
         context.moveTo(points[0].x, points[0].y)
         for (i in 1 until points.size) {
@@ -102,21 +108,21 @@ private class TrailStrokePainter(
         context.stroke()
     }
 
-    private fun drawFading(context: GraphicsContext, points: List<TrailPoint>, fadeProgress: Double) {
+    private fun drawFading(context: GraphicsContext, points: List<ITrailPoint>, fadeProgress: Double) {
         val totalSegments = points.size - 1
         for (i in 0 until totalSegments) {
             val u2 = (i + 1).toDouble() / totalSegments
             if (u2 > fadeProgress) {
                 val uMid = (i + 0.5) / totalSegments
                 val factor = ((uMid - fadeProgress) / (1.0 - fadeProgress)).coerceIn(0.0, 1.0)
-                val alpha = (baseAlpha * factor).coerceIn(0.0, baseAlpha)
+                val alpha = (config.second * factor).coerceIn(0.0, config.second)
                 drawSegmentWithAlpha(context, points[i], points[i + 1], alpha)
             }
         }
     }
 
-    private fun drawSegmentWithAlpha(context: GraphicsContext, p1: TrailPoint, p2: TrailPoint, alpha: Double) {
-        if (alpha > 0.01) {
+    private fun drawSegmentWithAlpha(context: GraphicsContext, p1: ITrailPoint, p2: ITrailPoint, alpha: Double) {
+        if (alpha > 0.01 && alpha <= config.second) {
             context.stroke = Color.rgb(66, 153, 225, alpha)
             context.strokeLine(p1.x, p1.y, p2.x, p2.y)
         }
@@ -124,67 +130,86 @@ private class TrailStrokePainter(
 }
 
 /**
- * Renderizador y gestor temporal de la estela continua del proyectil (SRP + DIP + OCP).
+ * Renderizador y gestor temporal cohesivo de la estela continua del proyectil (SRP + DIP + OCP).
  */
 class PathRenderer(
-    gc: GraphicsContext? = null,
-    fadeDelaySeconds: Double = 2.0,
-    fadeDurationSeconds: Double = 1.2,
-    private val baseAlpha: Double = 0.55
+    painter: ITrailStrokePainter,
+    fadeClock: ITrailFadeClock,
+    baseAlpha: Double = 0.55,
+    pointFactory: (Double, Double, Long) -> ITrailPoint = ::TrailPoint
 ) : IPathRenderer {
-    private val painter = TrailStrokePainter(gc, baseAlpha)
-    private val fadeClock = TrailFadeClock(fadeDelaySeconds, fadeDurationSeconds)
-    private val points = mutableListOf<TrailPoint>()
 
-    override var isFrozen: Boolean
-        get() = fadeClock.isFrozen
-        set(value) { fadeClock.isFrozen = value }
+    constructor(
+        gc: GraphicsContext? = null,
+        fadeDelaySeconds: Double = 2.0,
+        fadeDurationSeconds: Double = 1.2,
+        baseAlpha: Double = 0.55
+    ) : this(TrailStrokePainter(gc, baseAlpha), TrailFadeClock(fadeDelaySeconds, fadeDurationSeconds), baseAlpha)
 
-    override val pointCount: Int get() = points.size
+    private val ctx: Pair<Triple<ITrailStrokePainter, Double, (Double, Double, Long) -> ITrailPoint>, Pair<ITrailFadeClock, MutableList<ITrailPoint>>> =
+        Pair(Triple(painter, baseAlpha, pointFactory), Pair(fadeClock, mutableListOf()))
 
-    override fun freeze() { fadeClock.isFrozen = true }
+    override fun checkFrozen(): Boolean {
+        return ctx.second.first.checkFrozen()
+    }
 
-    override fun unfreeze() { fadeClock.isFrozen = false }
+    override fun updateFrozen(frozen: Boolean) {
+        ctx.second.first.updateFrozen(frozen)
+    }
 
-    override fun recordLaunch(nowNano: Long) = fadeClock.recordLaunch(nowNano)
+    override fun recordLaunch(nowNano: Long) {
+        ctx.second.first.recordLaunch(nowNano)
+    }
 
     override fun addPoint(x: Double, y: Double, nowNano: Long) {
-        if (points.lastOrNull()?.isVeryCloseTo(x, y) == true) return
-        points.add(TrailPoint(x, y, nowNano))
+        val pts = ctx.second.second
+        if (pts.isNotEmpty() && pts.last().isVeryCloseTo(x, y)) return
+        pts.add(ctx.first.third(x, y, nowNano))
     }
 
     override fun clear() {
-        points.clear()
-        fadeClock.reset()
+        ctx.second.second.clear()
+        ctx.second.first.reset()
     }
 
-    override fun getPoints(): List<Pair<Double, Double>> = points.map { Pair(it.x, it.y) }
+    override fun getTrailPoints(): List<ITrailPoint> {
+        return ctx.second.second.toList()
+    }
 
-    override fun getTrailPoints(): List<TrailPoint> = points.toList()
+    override fun getFadeProgress(nowNano: Long): Double {
+        val firstNano = ctx.second.second.firstOrNull()?.createdAtNano() ?: 0L
+        return ctx.second.first.computeProgress(nowNano, firstNano)
+    }
 
-    override fun getFadeProgress(nowNano: Long): Double =
-        fadeClock.computeProgress(nowNano, points.firstOrNull()?.createdAtNano() ?: 0L)
+    override fun getOpacity(nowNano: Long): Double {
+        return (ctx.first.second * (1.0 - getFadeProgress(nowNano))).coerceAtLeast(0.0)
+    }
 
-    override fun getOpacity(nowNano: Long): Double =
-        (baseAlpha * (1.0 - getFadeProgress(nowNano))).coerceAtLeast(0.0)
-
-    override fun getPointAlpha(point: TrailPoint, nowNano: Long): Double {
+    override fun getPointAlpha(point: ITrailPoint, nowNano: Long): Double {
         val progress = getFadeProgress(nowNano)
-        if (progress <= 0.0 || progress >= 1.0) return if (progress >= 1.0) 0.0 else baseAlpha
-        val idx = points.indexOf(point)
-        if (idx < 0 || points.size <= 1) return getOpacity(nowNano)
-        val u = idx.toDouble() / (points.size - 1.0)
-        return if (u <= progress) 0.0 else (baseAlpha * ((u - progress) / (1.0 - progress))).coerceIn(0.0, baseAlpha)
+        if (progress <= 0.0) return ctx.first.second
+        if (progress >= 1.0) return 0.0
+        return interpolatePointAlpha(point, progress, nowNano)
+    }
+
+    private fun interpolatePointAlpha(point: ITrailPoint, progress: Double, nowNano: Long): Double {
+        val pts = ctx.second.second
+        val alphaMax = ctx.first.second
+        val idx = pts.indexOf(point)
+        if (idx < 0 || pts.size <= 1) return getOpacity(nowNano)
+        val u = idx.toDouble() / (pts.size - 1.0)
+        if (u <= progress) return 0.0
+        return (alphaMax * ((u - progress) / (1.0 - progress))).coerceIn(0.0, alphaMax)
     }
 
     override fun drawPath(nowNano: Long) {
         val fadeProgress = getFadeProgress(nowNano)
         if (fadeProgress >= 1.0) {
-            points.clear()
+            ctx.second.second.clear()
             return
         }
-        if (points.size >= 2) {
-            painter.paint(points, fadeProgress)
+        if (ctx.second.second.size >= 2) {
+            ctx.first.first.paint(ctx.second.second, fadeProgress)
         }
     }
 }

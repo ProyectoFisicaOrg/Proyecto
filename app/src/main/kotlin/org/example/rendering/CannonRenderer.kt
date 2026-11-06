@@ -11,22 +11,70 @@ import javafx.scene.text.FontWeight
 import javafx.scene.text.TextAlignment
 
 /**
- * Contrato abstracto para el renderizado del cañón (DIP).
+ * Renderizador dedicado de insignias decorativas del cañón (calavera y llamas) (SRP + DIP).
  */
-interface ICannonRenderer {
-    fun drawCannon(angle: Double)
+class CannonDecalPainter(
+    private val gc: GraphicsContext
+) : ICannonDecalPainter {
+    private val flameColors = listOf(Color.rgb(255, 80, 20), Color.rgb(255, 160, 20), Color.rgb(255, 230, 40))
+
+    override fun drawSkull(cx: Double, cy: Double, scale: Double) {
+        val s = 8.0 * scale
+        gc.fill = Color.rgb(240, 240, 230)
+        gc.fillOval(cx - s, cy - s * 1.1, s * 2.0, s * 2.2)
+        gc.fill = Color.BLACK
+        gc.fillOval(cx - s * 0.5, cy - s * 0.3, s * 0.6, s * 0.7)
+        gc.fillOval(cx + s * 0.2, cy - s * 0.3, s * 0.6, s * 0.7)
+        drawSkullDetails(cx, cy, s)
+    }
+
+    private fun drawSkullDetails(cx: Double, cy: Double, s: Double) {
+        gc.beginPath()
+        gc.moveTo(cx, cy + s * 0.1)
+        gc.lineTo(cx - s * 0.25, cy + s * 0.4)
+        gc.lineTo(cx + s * 0.25, cy + s * 0.4)
+        gc.closePath()
+        gc.fill()
+        gc.stroke = Color.rgb(255, 50, 50)
+        gc.lineWidth = 1.5
+        gc.strokeLine(cx, cy - s * 1.2, cx, cy - s * 0.8)
+        gc.strokeLine(cx - s * 0.2, cy - s * 1.0, cx + s * 0.2, cy - s * 1.0)
+    }
+
+    override fun drawFlames(baseX: Double, baseY: Double) {
+        val random = Random(999)
+        for (i in 0..4) {
+            val fx = baseX - 3.0 - random.nextDouble() * 6.0
+            val fy = baseY - 6.0 + (random.nextDouble() - 0.5) * 12.0
+            drawFlameTongue(fx, fy, 6.0 + random.nextDouble() * 4.0, 10.0 + random.nextDouble() * 8.0)
+        }
+    }
+
+    private fun drawFlameTongue(fx: Double, fy: Double, w: Double, h: Double) {
+        for (layer in 0..2) {
+            gc.fill = flameColors[layer]
+            val lw = w * (1.0 - layer * 0.25)
+            val lh = h * (1.0 - layer * 0.2)
+            gc.beginPath()
+            gc.moveTo(fx, fy)
+            gc.quadraticCurveTo(fx - lw / 2.0, fy - lh / 3.0, fx, fy - lh)
+            gc.quadraticCurveTo(fx + lw / 2.0, fy - lh / 3.0, fx, fy)
+            gc.closePath()
+            gc.fill()
+        }
+    }
 }
 
 /**
- * Renderizador dedicado del tubo, boca y recámara del cañón (SRP).
+ * Renderizador dedicado del tubo, boca y recámara del cañón desacoplado por constructor (SRP + DIP).
  */
-private class CannonBarrelPainter(
+class CannonBarrelPainter(
     private val gc: GraphicsContext,
-    private val cfg: SceneConfig
-) {
-    private val decals = CannonDecalPainter(gc)
+    private val cfg: ISceneConfig,
+    private val decals: ICannonDecalPainter = CannonDecalPainter(gc)
+) : ICannonBarrelPainter {
 
-    fun drawRotatedBarrel(angle: Double) {
+    override fun drawRotatedBarrel(angle: Double) {
         gc.save()
         try {
             gc.translate(cfg.cannonBaseX, cfg.cannonBaseY)
@@ -42,18 +90,16 @@ private class CannonBarrelPainter(
     }
 
     private fun drawTubeAndRings() {
+        val halfW = cfg.cannonWidth / 2.0
         gc.fill = Color.rgb(40, 40, 40, 0.6)
-        gc.fillRoundRect(3.0, -cfg.cannonWidth / 2.0 + 3.0, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
-
+        gc.fillRoundRect(3.0, -halfW + 3.0, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
         gc.fill = LinearGradient(
-            0.0, -cfg.cannonWidth / 2.0, 0.0, cfg.cannonWidth / 2.0, true, CycleMethod.NO_CYCLE,
+            0.0, -halfW, 0.0, halfW, true, CycleMethod.NO_CYCLE,
             Stop(0.0, Color.rgb(180, 185, 190)), Stop(0.5, Color.rgb(120, 125, 130)), Stop(1.0, Color.rgb(60, 65, 70))
         )
-        gc.fillRoundRect(0.0, -cfg.cannonWidth / 2.0, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
-
+        gc.fillRoundRect(0.0, -halfW, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
         gc.fill = Color.rgb(220, 225, 230, 0.4)
-        gc.fillRoundRect(0.0, -cfg.cannonWidth / 2.0, cfg.cannonLength, cfg.cannonWidth * 0.3, 6.0, 6.0)
-
+        gc.fillRoundRect(0.0, -halfW, cfg.cannonLength, cfg.cannonWidth * 0.3, 6.0, 6.0)
         drawRingStrokes(Color.rgb(80, 85, 90), 3.0)
         drawRingStrokes(Color.rgb(160, 165, 170), 1.5)
     }
@@ -72,13 +118,11 @@ private class CannonBarrelPainter(
         val ml = 12.0
         gc.fill = Color.rgb(30, 30, 30, 0.5)
         gc.fillOval(cfg.cannonLength + 3.0, -mw / 2.0 + 3.0, ml, mw)
-
         gc.fill = LinearGradient(
             cfg.cannonLength, -mw / 2.0, cfg.cannonLength + ml, mw / 2.0, true, CycleMethod.NO_CYCLE,
             Stop(0.0, Color.rgb(140, 145, 150)), Stop(0.5, Color.rgb(90, 95, 100)), Stop(1.0, Color.rgb(40, 45, 50))
         )
         gc.fillOval(cfg.cannonLength, -mw / 2.0, ml, mw)
-
         gc.stroke = Color.rgb(200, 205, 210)
         gc.lineWidth = 2.5
         gc.strokeOval(cfg.cannonLength, -mw / 2.0, ml, mw)
@@ -89,7 +133,6 @@ private class CannonBarrelPainter(
         val cl = 22.0
         gc.fill = Color.rgb(70, 50, 35)
         gc.fillRoundRect(-cl, -cw / 2.0, cl, cw, 8.0, 8.0)
-
         gc.stroke = Color.rgb(50, 35, 25, 0.6)
         gc.lineWidth = 1.0
         for (i in 1..5) {
@@ -114,70 +157,14 @@ private class CannonBarrelPainter(
 }
 
 /**
- * Renderizador dedicado de insignias decorativas del cañón (calavera y llamas) (SRP).
+ * Renderizador dedicado de la plataforma, pivote y escala graduada de la base (SRP + DIP).
  */
-private class CannonDecalPainter(private val gc: GraphicsContext) {
-    private val flameColors = listOf(Color.rgb(255, 80, 20), Color.rgb(255, 160, 20), Color.rgb(255, 230, 40))
-
-    fun drawSkull(cx: Double, cy: Double, scale: Double) {
-        val s = 8.0 * scale
-        gc.fill = Color.rgb(240, 240, 230)
-        gc.fillOval(cx - s, cy - s * 1.1, s * 2.0, s * 2.2)
-
-        gc.fill = Color.BLACK
-        gc.fillOval(cx - s * 0.5, cy - s * 0.3, s * 0.6, s * 0.7)
-        gc.fillOval(cx + s * 0.2, cy - s * 0.3, s * 0.6, s * 0.7)
-        drawSkullDetails(cx, cy, s)
-    }
-
-    private fun drawSkullDetails(cx: Double, cy: Double, s: Double) {
-        gc.beginPath()
-        gc.moveTo(cx, cy + s * 0.1)
-        gc.lineTo(cx - s * 0.25, cy + s * 0.4)
-        gc.lineTo(cx + s * 0.25, cy + s * 0.4)
-        gc.closePath()
-        gc.fill()
-
-        gc.stroke = Color.rgb(255, 50, 50)
-        gc.lineWidth = 1.5
-        gc.strokeLine(cx, cy - s * 1.2, cx, cy - s * 0.8)
-        gc.strokeLine(cx - s * 0.2, cy - s * 1.0, cx + s * 0.2, cy - s * 1.0)
-    }
-
-    fun drawFlames(baseX: Double, baseY: Double) {
-        val random = Random(999)
-        for (i in 0..4) {
-            val fx = baseX - 3.0 - random.nextDouble() * 6.0
-            val fy = baseY - 6.0 + (random.nextDouble() - 0.5) * 12.0
-            val h = 10.0 + random.nextDouble() * 8.0
-            val w = 6.0 + random.nextDouble() * 4.0
-            drawFlameTongue(fx, fy, w, h)
-        }
-    }
-
-    private fun drawFlameTongue(fx: Double, fy: Double, w: Double, h: Double) {
-        for (layer in 0..2) {
-            gc.fill = flameColors[layer]
-            val lw = w * (1.0 - layer * 0.25)
-            val lh = h * (1.0 - layer * 0.2)
-            gc.beginPath()
-            gc.moveTo(fx, fy)
-            gc.quadraticCurveTo(fx - lw / 2.0, fy - lh / 3.0, fx, fy - lh)
-            gc.quadraticCurveTo(fx + lw / 2.0, fy - lh / 3.0, fx, fy)
-            gc.closePath()
-            gc.fill()
-        }
-    }
-}
-
-/**
- * Renderizador dedicado de la plataforma, pivote y escala graduada de la base (SRP).
- */
-private class CannonMountPainter(
+class CannonMountPainter(
     private val gc: GraphicsContext,
-    private val cfg: SceneConfig
-) {
-    fun drawCannonBase() {
+    private val cfg: ISceneConfig
+) : ICannonMountPainter {
+
+    override fun drawCannonBase() {
         gc.save()
         try {
             val bx = cfg.cannonBaseX
@@ -193,13 +180,11 @@ private class CannonMountPainter(
     private fun drawBasePlatform(bx: Double, by: Double, r: Double) {
         gc.fill = Color.rgb(0, 0, 0, 0.3)
         gc.fillOval(bx - r + 3.0, by - r + 8.0, r * 2.0, r * 2.0)
-
         gc.fill = LinearGradient(
             bx - r, by - r, bx + r, by + r, true, CycleMethod.NO_CYCLE,
             Stop(0.0, Color.rgb(130, 90, 50)), Stop(0.5, Color.rgb(100, 70, 40)), Stop(1.0, Color.rgb(70, 50, 30))
         )
         gc.fillOval(bx - r, by - r, r * 2.0, r * 2.0)
-
         gc.stroke = Color.rgb(100, 105, 110)
         gc.lineWidth = 4.0
         gc.strokeOval(bx - r, by - r, r * 2.0, r * 2.0)
@@ -208,13 +193,10 @@ private class CannonMountPainter(
     private fun drawBasePivot(bx: Double, by: Double, pr: Double) {
         gc.fill = Color.rgb(60, 65, 70)
         gc.fillOval(bx - pr, by - pr, pr * 2.0, pr * 2.0)
-
         for (i in 0..5) {
             val angle = i * Math.PI / 3.0
-            val sx = bx + Math.cos(angle) * (pr * 0.6)
-            val sy = by + Math.sin(angle) * (pr * 0.6)
             gc.fill = Color.rgb(180, 185, 190)
-            gc.fillOval(sx - 3.0, sy - 3.0, 6.0, 6.0)
+            gc.fillOval(bx + Math.cos(angle) * (pr * 0.6) - 3.0, by + Math.sin(angle) * (pr * 0.6) - 3.0, 6.0, 6.0)
         }
         gc.fill = Color.rgb(20, 20, 20)
         gc.fillOval(bx - 5.0, by - 5.0, 10.0, 10.0)
@@ -241,14 +223,12 @@ private class CannonMountPainter(
 }
 
 /**
- * Orquestador del renderizado del cañón (SRP + DIP).
+ * Orquestador del renderizado del cañón inyectado por interfaces (SRP + DIP).
  */
 class CannonRenderer(
-    gc: GraphicsContext,
-    cfg: SceneConfig
+    private val barrelPainter: ICannonBarrelPainter,
+    private val mountPainter: ICannonMountPainter
 ) : ICannonRenderer {
-    private val barrelPainter = CannonBarrelPainter(gc, cfg)
-    private val mountPainter = CannonMountPainter(gc, cfg)
 
     override fun drawCannon(angle: Double) {
         barrelPainter.drawRotatedBarrel(angle)
