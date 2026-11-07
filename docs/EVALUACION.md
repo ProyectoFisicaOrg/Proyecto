@@ -258,14 +258,14 @@ xychart-beta
 | 2026-10-23 | No | sin actividad | 0 / 0 |
 | 2026-10-26 | No | sin actividad | 0 / 0 |
 
-#### Aportes fuera del calendario de clases
+#### Aportes fuera del calendario de clases — Agustin Marañon
 
-**2 fechas fuera del calendario** · 2 commits · 3 merges
+**Agustin Marañon — 2 fechas fuera del calendario** · 2 commits · 3 merges
 
-| Fecha | Repositorios | Commits / merges |
-|---|---|--:|
-| 2026-10-30 | Proyecto | 1 / 2 |
-| 2026-11-06 | Proyecto | 1 / 1 |
+| Alumno | Fecha | Repositorios | Commits / merges |
+|---|---|---|---|
+| Agustin Marañon (`agmaranon`) | 2026-10-30 | Proyecto | 1 / 2 |
+| Agustin Marañon (`agmaranon`) | 2026-11-06 | Proyecto | 1 / 1 |
 
 ### matteocatania
 
@@ -291,9 +291,9 @@ xychart-beta
 | 2026-10-23 | No | sin actividad | 0 / 0 |
 | 2026-10-26 | No | sin actividad | 0 / 0 |
 
-#### Aportes fuera del calendario de clases
+#### Aportes fuera del calendario de clases — matteocatania
 
-_Sin aportes fuera del calendario de clases._
+_Sin aportes fuera del calendario de clases para matteocatania._
 
 <!-- actividad-clases:fin -->
 
