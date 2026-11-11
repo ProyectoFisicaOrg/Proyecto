@@ -8,13 +8,13 @@ import java.io.File
  */
 
 plugins {
-    // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
+    // Lo que ya tenías (¡no lo toques!)
     alias(libs.plugins.kotlin.jvm)
-    // Serialization for JSON output
     alias(libs.plugins.kotlin.serialization)
-
-    // Apply the application plugin to add support for building a CLI application in Java.
     application
+
+    // Agrega el plugin de JavaFX aquí abajo
+    id("org.openjfx.javafxplugin") version "0.1.0"
 }
 
 repositories {
@@ -34,6 +34,13 @@ dependencies {
     // This dependency is used by the application.
     implementation(libs.guava)
 
+    // JavaFX dependencies with platform classifier
+    val javafxVersion = "21.0.1"
+    implementation("org.openjfx:javafx-controls:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-graphics:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-fxml:$javafxVersion:linux")
+    implementation("org.openjfx:javafx-base:$javafxVersion:linux")
+
     // Kotlin Serialization for JSON output
     implementation(libs.kotlinx.serialization.json)
 }
@@ -43,6 +50,11 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+javafx {
+    version = "21" // Especifica la versión de JavaFX que quieras usar
+    modules("javafx.controls", "javafx.fxml") // Agrega los módulos que necesites
 }
 
 application {

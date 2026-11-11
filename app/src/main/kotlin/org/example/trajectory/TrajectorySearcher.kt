@@ -1,67 +1,37 @@
 package org.example.trajectory
 
-import org.example.TrajectoryPoint
+import kotlin.math.abs
+import org.example.ITrajectoryPoint
 
 /**
- * Abstracción de búsqueda de puntos dentro de una trayectoria.
- *
- * Responsabilidad Única (SRP): localizar puntos sobre la curva.
- * Principio de Segregación de Interfaces (ISP): interfaz específica de búsqueda,
- * separada de la generación y de la detección de colisiones.
- */
-interface TrajectorySearcher {
-    /**
-     * Encuentra el índice del punto cuya x es más cercana al valor dado.
-     *
-     * @param points Puntos de la trayectoria (ordenados por x creciente)
-     * @param targetX Coordenada x a buscar
-     * @return Índice del punto más cercano
-     */
-    fun findClosestIndexByX(points: List<TrajectoryPoint>, targetX: Double): Int
-
-    /**
-     * Obtiene el punto más cercano a una coordenada x dada.
-     *
-     * @param points Puntos de la trayectoria
-     * @param targetX Coordenada x a buscar
-     * @return TrajectoryPoint más cercano
-     */
-    fun findClosestByX(points: List<TrajectoryPoint>, targetX: Double): TrajectoryPoint
-}
-
-/**
- * Búsqueda por búsqueda binaria (O(log n)).
- *
- * Responsabilidad Única (SRP): implementar la estrategia de búsqueda binaria.
+ * Búsqueda sobre trayectoria mediante búsqueda binaria O(log n) (SRP).
  */
 class BinaryTrajectorySearcher : TrajectorySearcher {
 
-    override fun findClosestIndexByX(points: List<TrajectoryPoint>, targetX: Double): Int {
+    override fun findClosestIndexByX(points: List<ITrajectoryPoint>, targetX: Double): Int {
         if (points.isEmpty()) return 0
+        val boundaryIndex = searchInsertionIndex(points, targetX)
+        return chooseCloserIndex(points, boundaryIndex, targetX)
+    }
 
+    override fun findClosestByX(points: List<ITrajectoryPoint>, targetX: Double): ITrajectoryPoint {
+        return points[findClosestIndexByX(points, targetX)]
+    }
+
+    private fun searchInsertionIndex(points: List<ITrajectoryPoint>, targetX: Double): Int {
         var low = 0
         var high = points.size - 1
-
         while (low < high) {
-            val mid = (low + high) / 2
-            if (points[mid].x < targetX) {
-                low = mid + 1
-            } else {
-                high = mid
-            }
+            val mid = (low + high) ushr 1
+            if (points[mid].x < targetX) low = mid + 1 else high = mid
         }
-
-        // Comparar low y low-1 para encontrar el más cercano
-        if (low > 0) {
-            val diffLow = kotlin.math.abs(points[low].x - targetX)
-            val diffPrev = kotlin.math.abs(points[low - 1].x - targetX)
-            return if (diffPrev < diffLow) low - 1 else low
-        }
-
         return low
     }
 
-    override fun findClosestByX(points: List<TrajectoryPoint>, targetX: Double): TrajectoryPoint {
-        return points[findClosestIndexByX(points, targetX)]
+    private fun chooseCloserIndex(points: List<ITrajectoryPoint>, index: Int, targetX: Double): Int {
+        if (index <= 0) return index
+        val diffCurr = abs(points[index].x - targetX)
+        val diffPrev = abs(points[index - 1].x - targetX)
+        return if (diffPrev < diffCurr) index - 1 else index
     }
 }

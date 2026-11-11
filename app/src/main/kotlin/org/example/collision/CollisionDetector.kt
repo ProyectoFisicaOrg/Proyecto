@@ -1,139 +1,177 @@
 package org.example.collision
 
-import org.example.TrajectoryPoint
-import org.example.model.Target
-import org.example.model.TrajectoryMatrix
+import kotlin.math.abs
+import org.example.ITrajectoryPoint
+import org.example.model.ITrajectoryMatrixSummary
 import org.example.trajectory.TrajectoryInterpolator
 
-/** Estado de la colisión */
-enum class CollisionStatus {
-    /** El proyectil impactó dentro del objetivo */
-    HIT,
-    /** El proyectil no impactó dentro del objetivo */
-    MISS,
-    /** No se pudo determinar (matriz vacía, sin puntos cerca del suelo, etc.) */
-    UNKNOWN
-}
-
 /**
- * Punto de impacto resultante de una colisión con un objetivo.
+ * Estado polimórfico de la colisión con formato y color propios (OCP + Encapsulación).
  */
-data class ImpactResult(
-    val point: TrajectoryPoint,
-    val target: Target,
-    val distanceToCenter: Double,
-    val impactTime: Double
+enum class CollisionStatus(
+    private val bannerHeader: String,
+    private val hexColor: String
 ) {
-    /** true si impactó exactamente en el centro */
-    val isExactHit: Boolean get() = distanceToCenter < 1e-10
+    HIT("🎯 ¡IMPACTO EN EL BLANCO!\n", "#4ade80"),
+    MISS("❌ FUERA DEL OBJETIVO\n", "#f87171"),
+    UNKNOWN("⚠️ ", "#fb923c");
+
+    fun formatBanner(detail: String): String {
+        return "$bannerHeader$detail"
+    }
+
+    fun colorHex(): String {
+        return hexColor
+    }
 }
 
 /**
- * Resultado completo de la verificación de colisión.
+ * Punto de impacto resultante de una colisión con un objetivo (SRP + Encapsulación).
  */
-data class CollisionResult(
-    val status: CollisionStatus,
-    val impact: ImpactResult? = null,
-    val message: String = ""
-)
+@ConsistentCopyVisibility
+data class ImpactResult internal constructor(
+    private val content: Triple<ITrajectoryPoint, ICollisionTarget, Pair<Double, Double>>
+) : IImpactResult {
 
-/**
- * Abstracción de detección de colisión entre la trayectoria y un objetivo.
- *
- * Responsabilidad Única (SRP): validar si el impacto cae dentro del objetivo.
- * Principio de Segregación de Interfaces (ISP): interfaz específica de colisión.
- * Principio de Inversión de Dependencias (DIP): depende de [TrajectoryInterpolator].
- */
-interface CollisionDetector {
-    /**
-     * Verifica si el proyectil impacta dentro del rango horizontal de un objetivo.
-     *
-     * @param matrix Matriz de trayectoria
-     * @param target Objetivo circular sobre el suelo
-     * @return CollisionResult con el estado y detalles del impacto
-     */
-    fun checkCollision(matrix: TrajectoryMatrix, target: Target): CollisionResult
+    constructor(
+        point: ITrajectoryPoint,
+        target: ICollisionTarget,
+        distanceToCenter: Double,
+        impactTime: Double
+    ) : this(Triple(point, target, Pair(distanceToCenter, impactTime)))
 
-    /**
-     * Verifica si un x de impacto cae dentro del radio del objetivo.
-     *
-     * @param impactX Coordenada x donde impacta el proyectil
-     * @param target Objetivo circular
-     * @return true si el impacto cae dentro del objetivo
-     */
-    fun isInsideTarget(impactX: Double, target: Target): Boolean
+    override fun impactPoint(): ITrajectoryPoint {
+        return content.first
+    }
+
+    override fun hitTarget(): ICollisionTarget {
+        return content.second
+    }
+
+    override fun centerDistance(): Double {
+        return content.third.first
+    }
+
+    override fun timeOfImpact(): Double {
+        return content.third.second
+    }
+
+    fun isExactHit(): Boolean {
+        return content.third.first < 1e-10
+    }
+
+    fun isWithinTarget(): Boolean {
+        return content.third.first <= content.second.radius && abs(content.first.x - content.second.centerX) <= content.second.radius + 1.0
+    }
+
+    fun deviationX(): Double {
+        return content.first.x - content.second.centerX
+    }
 }
 
 /**
- * Detector de colisión en el eje X: comprueba si el punto de impacto (y≈0)
- * cae dentro del intervalo [left, right] del objetivo.
- *
- * Responsabilidad Única (SRP): implementar la lógica de colisión en el eje X.
+ * Resultado completo y encapsulado de la verificación de colisión (SRP + Encapsulación).
+ */
+@ConsistentCopyVisibility
+data class CollisionResult internal constructor(
+    private val content: Triple<CollisionStatus, IImpactResult?, String>
+) : ICollisionResult {
+
+    constructor(
+        status: CollisionStatus,
+        impact: IImpactResult? = null,
+        message: String = ""
+    ) : this(Triple(status, impact, message))
+
+    override fun collisionStatus(): CollisionStatus {
+        return content.first
+    }
+
+    override fun impactResult(): IImpactResult? {
+        return content.second
+    }
+
+    override fun statusMessage(): String {
+        return content.third
+    }
+
+    override fun isHit(): Boolean {
+        return content.first == CollisionStatus.HIT
+    }
+
+    fun isMiss(): Boolean {
+        return content.first == CollisionStatus.MISS
+    }
+
+    override fun formatBannerText(): String {
+        return content.first.formatBanner(content.third)
+    }
+
+    override fun bannerColorHex(): String {
+        return content.first.colorHex()
+    }
+}
+
+/**
+ * Fábrica estándar de resultados de colisión para inyección de dependencias (SRP + DIP).
+ */
+class DefaultCollisionResultFactory : ICollisionResultFactory {
+    override fun unknown(message: String): ICollisionResult {
+        return CollisionResult(CollisionStatus.UNKNOWN, null, message)
+    }
+
+    override fun hit(point: ITrajectoryPoint, target: ICollisionTarget, dist: Double): ICollisionResult {
+        val impact = ImpactResult(point, target, dist, point.t)
+        val msg = "Impacto en x=%.2f, t=%.4f s".format(point.x, point.t)
+        return CollisionResult(CollisionStatus.HIT, impact, msg)
+    }
+
+    override fun miss(closestX: Double, target: ICollisionTarget): ICollisionResult {
+        val msg = "El proyectil impactó en x=%.2f, fuera del objetivo [%.2f, %.2f]"
+            .format(closestX, target.left(), target.right())
+        return CollisionResult(CollisionStatus.MISS, null, msg)
+    }
+}
+
+/**
+ * Detector de colisión en el eje X desacoplado por constructor e interfaces (SRP + DIP).
  */
 class XAxisCollisionDetector(
-    private val interpolator: TrajectoryInterpolator,
-    private val tolerance: Double = DEFAULT_TOLERANCE
+    interpolator: TrajectoryInterpolator,
+    tolerance: Double = 0.5,
+    resultFactory: ICollisionResultFactory = DefaultCollisionResultFactory()
 ) : CollisionDetector {
+    private val cfg: Triple<TrajectoryInterpolator, Double, ICollisionResultFactory> = Triple(interpolator, tolerance, resultFactory)
 
-    override fun checkCollision(matrix: TrajectoryMatrix, target: Target): CollisionResult {
+    override fun checkCollision(matrix: ITrajectoryMatrixSummary, target: ICollisionTarget): ICollisionResult {
         val points = matrix.points
-
         if (points.isEmpty()) {
-            return CollisionResult(
-                status = CollisionStatus.UNKNOWN,
-                message = "No hay puntos en la matriz de trayectoria"
-            )
+            return cfg.third.unknown("No hay puntos en la matriz de trayectoria")
         }
-
-        // Puntos cercanos al suelo (y dentro de la tolerancia)
-        val nearGroundPoints = points.filter { it.y <= tolerance && it.y >= -tolerance * 2 }
-
-        if (nearGroundPoints.isEmpty()) {
-            return CollisionResult(
-                status = CollisionStatus.UNKNOWN,
-                message = "No se encontraron puntos cerca del suelo"
-            )
+        val nearGround = findNearGroundPoints(points)
+        if (nearGround.isEmpty()) {
+            return cfg.third.unknown("No se encontraron puntos cerca del suelo")
         }
-
-        // Verificar si algún punto cae en el rango horizontal del objetivo
-        for (point in nearGroundPoints) {
-            if (point.x >= target.left && point.x <= target.right) {
-                val exactPoint = interpolator.interpolateToGround(points, point)
-                val distanceToCenter = kotlin.math.abs(exactPoint.x - target.centerX)
-
-                val impact = ImpactResult(
-                    point = exactPoint,
-                    target = target,
-                    distanceToCenter = distanceToCenter,
-                    impactTime = exactPoint.t
-                )
-
-                return CollisionResult(
-                    status = CollisionStatus.HIT,
-                    impact = impact,
-                    message = "Impacto en x=%.2f, t=%.4f s".format(exactPoint.x, exactPoint.t)
-                )
-            }
-        }
-
-        // No impactó: reportar el punto de impacto real más cercano
-        val closestToTarget = nearGroundPoints.minByOrNull {
-            kotlin.math.abs(it.x - target.centerX)
-        }!!
-
-        return CollisionResult(
-            status = CollisionStatus.MISS,
-            message = "El proyectil impactó en x=%.2f, fuera del objetivo [%.2f, %.2f]"
-                .format(closestToTarget.x, target.left, target.right)
-        )
+        return evaluateHitOrMiss(points, nearGround, target)
     }
 
-    override fun isInsideTarget(impactX: Double, target: Target): Boolean {
-        return kotlin.math.abs(impactX - target.centerX) <= target.radius
+    private fun findNearGroundPoints(points: List<ITrajectoryPoint>): List<ITrajectoryPoint> {
+        val tol = cfg.second
+        return points.filter { it.y <= tol && it.y >= -tol * 2.0 }
     }
 
-    companion object {
-        /** Tolerancia por defecto para considerar un punto "cerca del suelo" (metros) */
-        const val DEFAULT_TOLERANCE = 0.5
+    private fun evaluateHitOrMiss(allPoints: List<ITrajectoryPoint>, nearGround: List<ITrajectoryPoint>, target: ICollisionTarget): ICollisionResult {
+        val hitCandidate = nearGround.firstOrNull { target.contains(it.x) }
+        if (hitCandidate != null) {
+            val exactPoint = cfg.first.interpolateToGround(allPoints, hitCandidate)
+            val dist = abs(exactPoint.x - target.centerX)
+            return cfg.third.hit(exactPoint, target, dist)
+        }
+        val closest = nearGround.minByOrNull { abs(it.x - target.centerX) }!!
+        return cfg.third.miss(closest.x, target)
+    }
+
+    override fun isInsideTarget(impactX: Double, target: ICollisionTarget): Boolean {
+        return target.isHit(impactX, 0.0) && cfg.second >= 0.0
     }
 }

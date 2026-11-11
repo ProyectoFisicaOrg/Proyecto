@@ -1,28 +1,51 @@
 package org.example.model
 
+import kotlin.math.abs
+import org.example.collision.ICollisionTarget
+
 /**
- * Objetivo circular desplazable sobre el suelo.
- *
- * Responsabilidad Única (SRP): valor inmutable que representa el objetivo.
- * Encapsula el cálculo de sus bordes y centro a partir del centro y el radio.
- *
- * @param centerX Posición X del centro del objetivo en el suelo (metros)
- * @param radius Radio del objetivo (metros)
+ * Objetivo circular desplazable sobre el suelo (SRP + Encapsulación).
  */
-data class Target(
-    val centerX: Double,
-    val radius: Double
-) {
+@ConsistentCopyVisibility
+data class Target internal constructor(
+    private val specs: List<Double>
+) : ICollisionTarget {
+
+    constructor(centerX: Double, radius: Double) : this(listOf(centerX, radius))
+
     init {
-        require(radius >= 0) { "El radio no puede ser negativo" }
+        require(specs[1] >= 0.0) { "El radio no puede ser negativo" }
     }
 
-    /** Borde izquierdo del objetivo */
-    val left: Double get() = centerX - radius
+    override fun centerPosition(): Double {
+        return specs[0]
+    }
 
-    /** Borde derecho del objetivo */
-    val right: Double get() = centerX + radius
+    override fun radiusMeters(): Double {
+        return specs[1]
+    }
 
-    /** Diámetro del objetivo */
-    val diameter: Double get() = 2 * radius
+    override fun left(): Double {
+        return specs[0] - specs[1]
+    }
+
+    override fun right(): Double {
+        return specs[0] + specs[1]
+    }
+
+    fun diameter(): Double {
+        return 2.0 * specs[1]
+    }
+
+    override fun contains(x: Double): Boolean {
+        return x in left()..right()
+    }
+
+    fun distanceToCenter(x: Double): Double {
+        return abs(x - specs[0])
+    }
+
+    override fun isHit(impactX: Double, tolerance: Double): Boolean {
+        return distanceToCenter(impactX) <= (specs[1] + tolerance)
+    }
 }

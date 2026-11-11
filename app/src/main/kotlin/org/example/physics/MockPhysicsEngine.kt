@@ -11,7 +11,9 @@ import org.example.Position
  * inversión de dependencias (DIP), se crea por constructor en el punto
  * de entrada y se pasa como [PhysicsEngine].
  */
-class MockPhysicsEngine : PhysicsEngine {
+class MockPhysicsEngine(
+    private val positionFactory: (Double, Double) -> Position = ::Position
+) : PhysicsEngine {
 
     /**
      * Devuelve la posición del proyectil en el instante [time].
@@ -20,6 +22,6 @@ class MockPhysicsEngine : PhysicsEngine {
      * @return Posición calculada con movimiento lineal simple.
      */
     override fun getState(time: Double): Position {
-        return Position(time * 20.0, time * 10.0)
+        return positionFactory(time * 20.0, time * 10.0)
     }
 }
