@@ -10,30 +10,30 @@ import org.example.model.ITrajectoryMatrixSummary
  */
 class DefaultInstantaneousStateApi(
     searcher: TrajectoryNearestNeighborSearcher,
-    inspectorFactory: (ITrajectoryMatrixSummary, InstantaneousStateApi) -> TrajectoryInspector = ::BoundTrajectoryInspector
+    inspectorFactory: (ITrajectoryMatrixSummary, InstantaneousStateApi) -> TrajectoryInspector
 ) : InstantaneousStateApi {
     private val deps: Pair<TrajectoryNearestNeighborSearcher, (ITrajectoryMatrixSummary, InstantaneousStateApi) -> TrajectoryInspector> =
         Pair(searcher, inspectorFactory)
 
     override fun getInstantaneousState(matrix: ITrajectoryMatrixSummary, x: Double, y: Double): IInstantaneousState {
-        return getInstantaneousState(matrix.points, x, y)
+        return getInstantaneousState(matrix.trajectoryPoints(), x, y)
     }
 
     override fun getInstantaneousStateByX(matrix: ITrajectoryMatrixSummary, x: Double): IInstantaneousState {
-        return getInstantaneousStateByX(matrix.points, x)
+        return getInstantaneousStateByX(matrix.trajectoryPoints(), x)
     }
 
     override fun getInstantaneousState(points: List<ITrajectoryPoint>, x: Double, y: Double): IInstantaneousState {
         require(points.isNotEmpty()) { "La lista de puntos de trayectoria no puede estar vacía" }
         val nearestPoint = deps.first.findNearest(points, x, y)
-        val distance = hypot(nearestPoint.x - x, nearestPoint.y - y)
+        val distance = hypot(nearestPoint.posX() - x, nearestPoint.posY() - y)
         return InstantaneousState.fromTrajectoryPoint(nearestPoint, distance)
     }
 
     override fun getInstantaneousStateByX(points: List<ITrajectoryPoint>, x: Double): IInstantaneousState {
         require(points.isNotEmpty()) { "La lista de puntos de trayectoria no puede estar vacía" }
         val nearestPoint = deps.first.findNearestByX(points, x)
-        val distance = abs(nearestPoint.x - x)
+        val distance = abs(nearestPoint.posX() - x)
         return InstantaneousState.fromTrajectoryPoint(nearestPoint, distance)
     }
 

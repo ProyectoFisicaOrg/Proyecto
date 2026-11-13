@@ -36,21 +36,32 @@ interface IFlightKinematicsPort {
  * Contexto de ejecución inyectable para [AnimationEngine] (DIP + SRP).
  */
 interface IAnimationRuntimeContext : IFlightKinematicsPort {
-    fun evaluateGroundImpact(matrix: ITrajectoryMatrixSummary): ICollisionResult
+    fun evaluator(): IFlightCollisionEvaluator
     fun hooks(): IFlightCompletionNotifier
     fun startTicker(step: (Long) -> Unit)
     fun stopTicker()
 }
 
+interface IFlightKinematicsFactory {
+    fun createKinematics(state: ISimulationState, cfg: ISceneConfig, transformer: CoordinateTransformer): IFlightKinematicsPort
+}
+
+interface IFlightEvaluatorFactory {
+    fun createEvaluator(transformer: CoordinateTransformer): IFlightCollisionEvaluator
+}
+
 /**
  * Fábricas modulares de puertos y motor de animación (ISP + DIP).
  */
-interface IFlightPortFactory {
-    fun createKinematics(state: ISimulationState, cfg: ISceneConfig, transformer: CoordinateTransformer): IFlightKinematicsPort
-    fun createEvaluator(transformer: CoordinateTransformer): IFlightCollisionEvaluator
+interface IFlightPortFactory : IFlightKinematicsFactory, IFlightEvaluatorFactory {
+    fun portFactoryId(): String
+}
+
+interface IRuntimeContextWiring {
+    fun createDefault(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier): IAnimationRuntimeContext
+    fun createWithTicker(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, ticker: FrameTicker): IAnimationRuntimeContext
 }
 
 interface IAnimationEngineFactory {
     fun create(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, timeScale: Double = 1.75): IAnimationEngine
-    fun createWithTicker(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, ticker: FrameTicker): IAnimationEngine
 }

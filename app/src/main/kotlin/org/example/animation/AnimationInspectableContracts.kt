@@ -6,8 +6,6 @@ package org.example.animation
 interface IInspectableTicker : FrameTicker {
     fun checkRunning(): Boolean
     fun advance(nowNano: Long)
-
-    val isRunning: Boolean get() = checkRunning()
 }
 
 /**

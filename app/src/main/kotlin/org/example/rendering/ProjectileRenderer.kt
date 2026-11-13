@@ -30,8 +30,8 @@ class ProjectileRenderer(
 
     override fun drawAngleIndicator(angle: Double) {
         val radius = 60.0
-        val bx = cfg.cannonBaseX
-        val by = cfg.cannonBaseY
+        val bx = cfg.basePivotX()
+        val by = cfg.basePivotY()
         gc.save()
         try {
             drawAngleArc(bx, by, radius, angle)

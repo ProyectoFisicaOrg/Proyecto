@@ -10,10 +10,4 @@ interface ITelemetryAliases {
     fun sourcePoint(): ITrajectoryPoint
     fun scalarSpeed(): Double
     fun currentPosition(): IPosition
-
-    val t: Double get() = sourcePoint().t
-    val y: Double get() = sourcePoint().y
-    val v: Double get() = scalarSpeed()
-    val distance: Double get() = sourcePoint().x
-    val position: IPosition get() = currentPosition()
 }

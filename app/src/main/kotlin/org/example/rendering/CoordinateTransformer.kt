@@ -9,19 +9,19 @@ class DefaultCoordinateTransformer(
 ) : CoordinateTransformer {
 
     override fun toCanvasX(physicsX: Double): Double {
-        return cfg.cannonBaseX + physicsX * pixelsPerMeter
+        return cfg.basePivotX() + physicsX * pixelsPerMeter
     }
 
     override fun toCanvasY(physicsY: Double): Double {
-        return cfg.cannonBaseY - physicsY * pixelsPerMeter
+        return cfg.basePivotY() - physicsY * pixelsPerMeter
     }
 
     override fun toPhysicsX(canvasX: Double): Double {
-        return (canvasX - cfg.cannonBaseX) / pixelsPerMeter
+        return (canvasX - cfg.basePivotX()) / pixelsPerMeter
     }
 
     override fun toPhysicsY(canvasY: Double): Double {
-        return (cfg.cannonBaseY - canvasY) / pixelsPerMeter
+        return (cfg.basePivotY() - canvasY) / pixelsPerMeter
     }
 
     override fun toCanvasDistance(physicsMeters: Double): Double {

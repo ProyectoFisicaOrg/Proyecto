@@ -21,7 +21,7 @@ data class Position internal constructor(
     }
 
     override fun distanceTo(other: IPosition): Double {
-        return hypot(coords[0] - other.x, coords[1] - other.y)
+        return hypot(coords[0] - other.horizontal(), coords[1] - other.vertical())
     }
 
     override fun translate(dx: Double, dy: Double): Position {

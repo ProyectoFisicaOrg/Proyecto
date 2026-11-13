@@ -13,18 +13,35 @@ interface ISceneEnvironmentPainter {
     fun drawProjectile(x: Double, y: Double)
 }
 
+interface IScrubbingFeedbackPainter {
+    fun renderScrubbing(gc: GraphicsContext, controller: IScrubbingController, coordsAndBounds: List<Double>)
+}
+
+interface IScrubbingFeedbackWiring {
+    fun createFeedbackPainter(): IScrubbingFeedbackPainter
+}
+
 interface ISceneOverlayRenderer {
     fun renderOverlay(controller: IScrubbingController?)
+}
+
+interface ISceneRenderInput {
+    fun graphics(): GraphicsContext
+    fun sceneConfig(): ISceneConfig
+    fun coordTransformer(): CoordinateTransformer
+    fun stateModel(): ISimulationState
+    fun path(): IPathRenderer
+    fun target(): ITargetRenderer
+}
+
+interface ISceneRendererWiring {
+    fun assemble(input: ISceneRenderInput): ISceneRenderer
 }
 
 interface ISceneRenderer {
     fun currentScrubbingController(): IScrubbingController?
     fun assignScrubbingController(controller: IScrubbingController?)
     fun render()
-
-    var scrubbingController: IScrubbingController?
-        get() = currentScrubbingController()
-        set(value) = assignScrubbingController(value)
 }
 
 interface ISceneryBuilder {

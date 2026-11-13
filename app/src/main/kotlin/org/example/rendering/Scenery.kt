@@ -77,7 +77,7 @@ class SkyBackdropPainter(
     private val cfg: ISceneConfig
 ) : ISkyBackdropPainter {
     private val skyGradient = LinearGradient(
-        0.0, 0.0, 0.0, cfg.groundY, true, CycleMethod.NO_CYCLE,
+        0.0, 0.0, 0.0, cfg.groundLevelY(), true, CycleMethod.NO_CYCLE,
         Stop(0.0, Color.rgb(30, 60, 120)), Stop(0.3, Color.rgb(60, 110, 180)),
         Stop(0.6, Color.rgb(100, 160, 220)), Stop(1.0, Color.rgb(170, 210, 240))
     )
@@ -85,7 +85,7 @@ class SkyBackdropPainter(
     private val cloudCircles: List<ICanvasDrawableElement> = buildCloudCircles()
 
     private fun buildSunRays(): List<ICanvasDrawableElement> {
-        val sunX = cfg.canvasWidth - 130.0
+        val sunX = cfg.width() - 130.0
         val sunY = 80.0
         val rand = Random(42)
         return (0..11).map { i ->
@@ -96,7 +96,7 @@ class SkyBackdropPainter(
     }
 
     private fun buildCloudCircles(): List<ICanvasDrawableElement> {
-        val baseX = cfg.cannonBaseX + 52.5
+        val baseX = cfg.basePivotX() + 52.5
         return listOf(
             CloudCircle.fromCenter(baseX, 100.0, 50.0, 35.0),
             CloudCircle.fromCenter(baseX + 25.0, 82.5, 50.0, 35.0),
@@ -108,14 +108,14 @@ class SkyBackdropPainter(
 
     override fun renderSkyLayers() {
         gc.fill = skyGradient
-        gc.fillRect(0.0, 0.0, cfg.canvasWidth, cfg.groundY)
+        gc.fillRect(0.0, 0.0, cfg.width(), cfg.groundLevelY())
         drawSun()
         drawCloud()
         drawHills()
     }
 
     private fun drawSun() {
-        val sunX = cfg.canvasWidth - 130.0
+        val sunX = cfg.width() - 130.0
         gc.stroke = Color.rgb(255, 210, 60, 0.45)
         gc.lineWidth = 2.0
         for (ray in sunRays) ray.drawOn(gc)
@@ -138,13 +138,16 @@ class SkyBackdropPainter(
     }
 
     private fun drawHillRidge(fill: Color, peakRatio: Double, peakH: Double, midRatio: Double) {
+        val w = cfg.width()
+        val gy = cfg.groundLevelY()
+        val h = cfg.height()
         gc.fill = fill
         gc.beginPath()
-        gc.moveTo(0.0, cfg.groundY)
-        gc.quadraticCurveTo(cfg.canvasWidth * peakRatio, cfg.groundY - peakH, cfg.canvasWidth * midRatio, cfg.groundY)
-        gc.quadraticCurveTo(cfg.canvasWidth * 0.85, cfg.groundY - peakH * 0.65, cfg.canvasWidth, cfg.groundY)
-        gc.lineTo(cfg.canvasWidth, cfg.canvasHeight)
-        gc.lineTo(0.0, cfg.canvasHeight)
+        gc.moveTo(0.0, gy)
+        gc.quadraticCurveTo(w * peakRatio, gy - peakH, w * midRatio, gy)
+        gc.quadraticCurveTo(w * 0.85, gy - peakH * 0.65, w, gy)
+        gc.lineTo(w, h)
+        gc.lineTo(0.0, h)
         gc.closePath()
         gc.fill()
     }
@@ -158,7 +161,7 @@ class GroundFoliagePainter(
     private val cfg: ISceneConfig
 ) : IGroundFoliagePainter {
     private val grassGradient = LinearGradient(
-        0.0, cfg.groundY, 0.0, cfg.canvasHeight, true, CycleMethod.NO_CYCLE,
+        0.0, cfg.groundLevelY(), 0.0, cfg.height(), true, CycleMethod.NO_CYCLE,
         Stop(0.0, Color.rgb(45, 150, 50)), Stop(0.4, Color.rgb(35, 120, 40)),
         Stop(0.7, Color.rgb(25, 90, 30)), Stop(1.0, Color.rgb(18, 70, 22))
     )
@@ -170,36 +173,43 @@ class GroundFoliagePainter(
 
     private fun buildBlades(): List<ICanvasDrawableElement> {
         val rand = Random(12345)
-        return (0..(cfg.canvasWidth / 6.0).toInt()).map { x ->
-            GrassBlade(listOf(x * 6.0 + (rand.nextDouble() * 3.0 - 1.5), (rand.nextDouble() - 0.5) * 6.0, 8.0 + rand.nextDouble() * 14.0, cfg.groundY))
+        val gy = cfg.groundLevelY()
+        return (0..(cfg.width() / 6.0).toInt()).map { x ->
+            GrassBlade(listOf(x * 6.0 + (rand.nextDouble() * 3.0 - 1.5), (rand.nextDouble() - 0.5) * 6.0, 8.0 + rand.nextDouble() * 14.0, gy))
         }
     }
 
     private fun buildFlowers(): List<ICanvasDrawableElement> {
         val rand = Random(5555)
+        val gy = cfg.groundLevelY()
+        val w = cfg.width()
+        val h = cfg.height()
         val palette = listOf(Color.rgb(255, 100, 100), Color.rgb(255, 200, 50), Color.rgb(180, 100, 255), Color.rgb(100, 200, 255), Color.rgb(255, 150, 200))
         return (0..30).map {
-            val fx = 50.0 + rand.nextDouble() * (cfg.canvasWidth - 100.0)
-            val fy = cfg.groundY + 5.0 + rand.nextDouble() * (cfg.canvasHeight - cfg.groundY - 15.0)
+            val fx = 50.0 + rand.nextDouble() * (w - 100.0)
+            val fy = gy + 5.0 + rand.nextDouble() * (h - gy - 15.0)
             Wildflower(Pair(fx, fy), palette[rand.nextInt(palette.size)])
         }
     }
 
     override fun renderFoliageLayers() {
+        val gy = cfg.groundLevelY()
         gc.fill = grassGradient
-        gc.fillRect(0.0, cfg.groundY, cfg.canvasWidth, cfg.canvasHeight - cfg.groundY)
+        gc.fillRect(0.0, gy, cfg.width(), cfg.height() - gy)
         gc.stroke = Color.rgb(60, 180, 60, 0.4)
         gc.lineWidth = 1.2
         for (elem in foliageElements) elem.drawOn(gc)
     }
 
     override fun renderGroundLine() {
+        val gy = cfg.groundLevelY()
+        val w = cfg.width()
         gc.stroke = Color.rgb(60, 80, 40)
         gc.lineWidth = 4.0
-        gc.strokeLine(0.0, cfg.groundY, cfg.canvasWidth, cfg.groundY)
+        gc.strokeLine(0.0, gy, w, gy)
         gc.stroke = Color.rgb(40, 60, 30)
         gc.lineWidth = 2.0
-        gc.strokeLine(0.0, cfg.groundY + 2.0, cfg.canvasWidth, cfg.groundY + 2.0)
+        gc.strokeLine(0.0, gy + 2.0, w, gy + 2.0)
     }
 }
 

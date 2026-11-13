@@ -9,10 +9,8 @@ import org.example.model.ITrajectoryMatrixSummary
 interface TrajectoryInspector {
     fun boundMatrix(): ITrajectoryMatrixSummary
     fun inspect(x: Double, y: Double): IInstantaneousState
-    fun inspect(position: IPosition): IInstantaneousState = inspect(position.x, position.y)
+    fun inspect(position: IPosition): IInstantaneousState = inspect(position.horizontal(), position.vertical())
     fun inspectByX(x: Double): IInstantaneousState
-
-    val matrix: ITrajectoryMatrixSummary get() = boundMatrix()
 }
 
 /**

@@ -38,60 +38,61 @@ data class ScrubbingState internal constructor(
 }
 
 /**
- * Estado base encapsulado y cohesivo del ciclo de sesión de scrubbing (SRP + Encapsulación).
+ * Sesión cohesiva y encapsulada del estado interactivo de scrubbing (SRP + DIP).
  */
-abstract class ScrubbingSessionBase : IScrubbingController {
-    private var flags: List<Boolean> = listOf(false, false, false)
-    private var refs: Pair<ITrajectoryInspector?, ISpanishKinematicView?> = Pair(null, null)
+class ScrubbingSession : IScrubbingSession {
+    private var slot: Pair<List<Boolean>, Pair<ITrajectoryInspector?, ISpanishKinematicView?>> =
+        Pair(listOf(false, false, false), Pair(null, null))
 
     override fun checkEnabled(): Boolean {
-        return flags[0]
+        return slot.first[0]
     }
 
     override fun checkDragging(): Boolean {
-        return flags[1]
+        return slot.first[1]
     }
 
     override fun checkHovered(): Boolean {
-        return flags[2]
+        return slot.first[2]
     }
 
     override fun currentInspector(): ITrajectoryInspector? {
-        return refs.first
+        return slot.second.first
     }
 
     override fun selectedTrajectoryPoint(): ISpanishKinematicView? {
-        return refs.second
+        return slot.second.second
     }
 
     override fun getState(): IScrubbingState {
-        return ScrubbingState(flags[0], flags[1], flags[2], refs.second)
+        val fl = slot.first
+        return ScrubbingState(fl[0], fl[1], fl[2], slot.second.second)
     }
 
-    protected fun activateSession(newInspector: ITrajectoryInspector) {
-        flags = listOf(true, false, false)
-        refs = Pair(newInspector, null)
+    override fun activateSession(newInspector: ITrajectoryInspector) {
+        slot = Pair(listOf(true, false, false), Pair(newInspector, null))
     }
 
-    protected fun clearSession() {
-        flags = listOf(false, false, false)
-        refs = Pair(null, null)
+    override fun clearSession() {
+        slot = Pair(listOf(false, false, false), Pair(null, null))
     }
 
-    protected fun updateDraggingFlag(dragging: Boolean) {
-        flags = listOf(flags[0], dragging, flags[2])
+    override fun updateDraggingFlag(dragging: Boolean) {
+        val fl = slot.first
+        slot = Pair(listOf(fl[0], dragging, fl[2]), slot.second)
     }
 
-    protected fun updateHoveredFlag(hovered: Boolean) {
-        flags = listOf(flags[0], flags[1], hovered)
+    override fun updateHoveredFlag(hovered: Boolean) {
+        val fl = slot.first
+        slot = Pair(listOf(fl[0], fl[1], hovered), slot.second)
     }
 
-    protected fun updateSelectedPoint(point: ISpanishKinematicView?) {
-        refs = Pair(refs.first, point)
+    override fun updateSelectedPoint(point: ISpanishKinematicView?) {
+        slot = Pair(slot.first, Pair(slot.second.first, point))
     }
 
-    protected fun activeInspector(): ITrajectoryInspector? {
-        return if (flags[0]) refs.first else null
+    override fun activeInspector(): ITrajectoryInspector? {
+        return if (slot.first[0]) slot.second.first else null
     }
 }
 
@@ -99,27 +100,59 @@ abstract class ScrubbingSessionBase : IScrubbingController {
  * Evaluador geométrico de hit-testing para proyectil, diana y curva de trayectoria (SRP + DIP).
  */
 class ScrubbingHitTester(
-    private val state: ISimulationState,
-    private val transformer: CoordinateTransformer,
-    private val cfg: ISceneConfig,
+    state: ISimulationState,
+    transformer: CoordinateTransformer,
+    cfg: ISceneConfig,
     hitThresholdPixels: Double,
     projectileHitRadius: Double
 ) : IScrubbingHitTester {
-    private val thresholds: Pair<Double, Double> = Pair(hitThresholdPixels, projectileHitRadius)
+    private val ctx: Pair<Triple<ISimulationState, CoordinateTransformer, ISceneConfig>, Pair<Double, Double>> =
+        Pair(Triple(state, transformer, cfg), Pair(hitThresholdPixels, projectileHitRadius))
 
     override fun isOverProjectile(canvasX: Double, canvasY: Double): Boolean {
-        return hypot(canvasX - state.projectileX, canvasY - state.projectileY) <= thresholds.second
+        val proj = ctx.first.first.currentProjectileCoords()
+        return hypot(canvasX - proj.first, canvasY - proj.second) <= ctx.second.second
     }
 
     override fun isOverTarget(canvasX: Double, canvasY: Double): Boolean {
-        return hypot(canvasX - state.targetX, canvasY - cfg.groundY) <= state.targetRadius + 6.0
+        val st = ctx.first.first
+        val gy = ctx.first.third.groundLevelY()
+        return hypot(canvasX - st.currentTargetX(), canvasY - gy) <= st.currentTargetRadius() + 6.0
     }
 
     override fun findCurvePointWithinThreshold(inspector: ITrajectoryInspector, canvasX: Double, canvasY: Double): ISpanishKinematicView? {
+        val tr = ctx.first.second
         val nearest = inspector.findNearestPointFromCursor(canvasX, canvasY)
-        val nx = transformer.toCanvasX(nearest.x)
-        val ny = transformer.toCanvasY(nearest.y)
-        return if (hypot(canvasX - nx, canvasY - ny) <= thresholds.first) nearest else null
+        val nx = tr.toCanvasX(nearest.coordX())
+        val ny = tr.toCanvasY(nearest.coordY())
+        return if (hypot(canvasX - nx, canvasY - ny) <= ctx.second.first) nearest else null
+    }
+}
+
+/**
+ * Puerto de sincronización de posición del proyectil y callbacks de repintado durante el scrubbing (SRP + DIP).
+ */
+class ScrubbingSyncPort(
+    state: ISimulationState,
+    transformer: CoordinateTransformer,
+    onPointSelected: ((ISpanishKinematicView) -> Unit)?,
+    onRepaint: (() -> Unit)?
+) : IScrubbingSyncPort {
+    private val ctx: Pair<Pair<ISimulationState, CoordinateTransformer>, Pair<((ISpanishKinematicView) -> Unit)?, (() -> Unit)?>> =
+        Pair(Pair(state, transformer), Pair(onPointSelected, onRepaint))
+
+    override fun projectileCoords(): Pair<Double, Double> {
+        return ctx.first.first.currentProjectileCoords()
+    }
+
+    override fun commitSelectedPoint(point: ISpanishKinematicView) {
+        val tr = ctx.first.second
+        ctx.first.first.updateProjectilePosition(tr.toCanvasX(point.coordX()), tr.toCanvasY(point.coordY()))
+        ctx.second.first?.invoke(point)
+    }
+
+    override fun requestRepaint() {
+        ctx.second.second?.invoke()
     }
 }
 
@@ -127,9 +160,10 @@ class ScrubbingHitTester(
  * Adaptador de eventos JavaFX de ratón sobre el Canvas hacia el controlador de scrubbing (SRP + DIP).
  */
 class ScrubbingCanvasInstaller(
-    private val controller: IScrubbingController,
-    private val hitTester: IScrubbingHitTester
+    controller: IScrubbingController,
+    hitTester: IScrubbingHitTester
 ) : ICanvasMouseInstaller {
+    private val deps: Pair<IScrubbingController, IScrubbingHitTester> = Pair(controller, hitTester)
 
     override fun bind(canvas: Canvas) {
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED) { onPressed(canvas, it) }
@@ -140,74 +174,116 @@ class ScrubbingCanvasInstaller(
 
     private fun onPressed(canvas: Canvas, event: MouseEvent) {
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-        if (controller.handleMousePressed(local.x, local.y)) {
+        if (deps.first.handleMousePressed(local.x, local.y)) {
             canvas.cursor = Cursor.CLOSED_HAND
             event.consume()
         }
     }
 
     private fun onDragged(canvas: Canvas, event: MouseEvent) {
-        if (!controller.isDragging) return
+        val ctrl = deps.first
+        if (!ctrl.checkDragging()) return
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-        if (controller.handleMouseDragged(local.x, local.y)) {
+        if (ctrl.handleMouseDragged(local.x, local.y)) {
             canvas.cursor = Cursor.CLOSED_HAND
             event.consume()
         }
     }
 
     private fun onReleased(canvas: Canvas, event: MouseEvent) {
-        if (controller.handleMouseReleased()) {
-            canvas.cursor = if (controller.isHovered) Cursor.HAND else Cursor.DEFAULT
+        val ctrl = deps.first
+        if (ctrl.handleMouseReleased()) {
+            canvas.cursor = if (ctrl.checkHovered()) Cursor.HAND else Cursor.DEFAULT
             event.consume()
         }
     }
 
     private fun onMoved(canvas: Canvas, event: MouseEvent) {
-        if (!controller.isEnabled || controller.isDragging) return
+        val ctrl = deps.first
+        if (!ctrl.checkEnabled() || ctrl.checkDragging()) return
         val local = canvas.sceneToLocal(event.sceneX, event.sceneY)
-        if (controller.handleMouseMoved(local.x, local.y)) {
+        if (ctrl.handleMouseMoved(local.x, local.y)) {
             canvas.cursor = Cursor.HAND
-        } else if (!hitTester.isOverTarget(local.x, local.y)) {
+        } else if (!deps.second.isOverTarget(local.x, local.y)) {
             canvas.cursor = Cursor.DEFAULT
         }
     }
 }
 
 /**
- * Controlador de eventos de mouse y arrastre (Scrubbing) sobre la trayectoria (SRP + DIP + OCP).
+ * Especificación inmutable de inicialización para ensamblar [ScrubbingController] (SRP).
  */
-class ScrubbingController(
-    state: ISimulationState,
-    transformer: CoordinateTransformer,
-    cfg: ISceneConfig,
-    onPointSelected: ((ISpanishKinematicView) -> Unit)? = null,
-    onRepaint: (() -> Unit)? = null,
-    hitThresholdPixels: Double = 40.0,
-    projectileHitRadius: Double = 22.0
-) : ScrubbingSessionBase() {
-    private val context: Triple<ISimulationState, CoordinateTransformer, IScrubbingHitTester> = Triple(
-        state,
-        transformer,
-        ScrubbingHitTester(state, transformer, cfg, hitThresholdPixels, projectileHitRadius)
-    )
-    private val callbacks: Pair<((ISpanishKinematicView) -> Unit)?, (() -> Unit)?> = Pair(onPointSelected, onRepaint)
-    private val installer: ICanvasMouseInstaller = ScrubbingCanvasInstaller(this, context.third)
+@ConsistentCopyVisibility
+data class ScrubbingInitSpec internal constructor(
+    private val pack: Pair<Triple<ISimulationState, CoordinateTransformer, ISceneConfig>, Pair<Pair<Double, Double>, Pair<((ISpanishKinematicView) -> Unit)?, (() -> Unit)?>>>
+) : IScrubbingInitSpec {
+
+    constructor(
+        state: ISimulationState,
+        transformer: CoordinateTransformer,
+        cfg: ISceneConfig,
+        onPointSelected: ((ISpanishKinematicView) -> Unit)?,
+        onRepaint: (() -> Unit)?,
+        hitThresholdPixels: Double,
+        projectileHitRadius: Double
+    ) : this(Pair(Triple(state, transformer, cfg), Pair(Pair(hitThresholdPixels, projectileHitRadius), Pair(onPointSelected, onRepaint))))
+
+    override fun stateModel(): ISimulationState {
+        return pack.first.first
+    }
+
+    override fun coordTransformer(): CoordinateTransformer {
+        return pack.first.second
+    }
+
+    override fun sceneConfig(): ISceneConfig {
+        return pack.first.third
+    }
+
+    override fun hitThreshold(): Double {
+        return pack.second.first.first
+    }
+
+    override fun projectileRadius(): Double {
+        return pack.second.first.second
+    }
+
+    override fun notifyPointSelected(point: ISpanishKinematicView) {
+        pack.second.second.first?.invoke(point)
+    }
+
+    override fun notifyRepaint() {
+        pack.second.second.second?.invoke()
+    }
+}
+
+/**
+ * Implementación modular por composición del controlador de scrubbing (SRP + DIP + OCP).
+ */
+class DefaultScrubbingController(
+    session: IScrubbingSession,
+    hitTester: IScrubbingHitTester,
+    syncPort: IScrubbingSyncPort,
+    installerFactory: (IScrubbingController, IScrubbingHitTester) -> ICanvasMouseInstaller
+) : IScrubbingController, IScrubbingSession by session {
+    private val ctx: Pair<Pair<IScrubbingSession, IScrubbingHitTester>, Pair<IScrubbingSyncPort, ICanvasMouseInstaller>> =
+        Pair(Pair(session, hitTester), Pair(syncPort, installerFactory(this, hitTester)))
 
     override fun enable(inspector: ITrajectoryInspector) {
-        activateSession(inspector)
-        val st = context.first
-        snapToPoint(inspector.findNearestPointFromCursor(st.projectileX, st.projectileY))
-        callbacks.second?.invoke()
+        ctx.first.first.activateSession(inspector)
+        val proj = ctx.second.first.projectileCoords()
+        snapToPoint(inspector.findNearestPointFromCursor(proj.first, proj.second))
+        ctx.second.first.requestRepaint()
     }
 
     override fun disable() {
-        clearSession()
-        callbacks.second?.invoke()
+        ctx.first.first.clearSession()
+        ctx.second.first.requestRepaint()
     }
 
     override fun handleMousePressed(canvasX: Double, canvasY: Double): Boolean {
-        val active = activeInspector() ?: return false
-        val tester = context.third
+        val active = ctx.first.first.activeInspector() ?: return false
+        val tester = ctx.first.second
         if (tester.isOverProjectile(canvasX, canvasY)) {
             return startDraggingAt(active.findNearestPointFromCursor(canvasX, canvasY))
         }
@@ -217,52 +293,98 @@ class ScrubbingController(
     }
 
     private fun startDraggingAt(point: ISpanishKinematicView): Boolean {
-        updateDraggingFlag(true)
+        ctx.first.first.updateDraggingFlag(true)
         snapToPoint(point)
-        callbacks.second?.invoke()
+        ctx.second.first.requestRepaint()
         return true
     }
 
     override fun handleMouseDragged(canvasX: Double, canvasY: Double): Boolean {
-        if (!checkDragging()) return false
-        val active = activeInspector() ?: return false
+        val sess = ctx.first.first
+        if (!sess.checkDragging()) return false
+        val active = sess.activeInspector() ?: return false
         snapToPoint(active.findNearestPointFromCursor(canvasX, canvasY))
-        callbacks.second?.invoke()
+        ctx.second.first.requestRepaint()
         return true
     }
 
     override fun handleMouseReleased(): Boolean {
-        if (!checkDragging()) return false
-        updateDraggingFlag(false)
-        callbacks.second?.invoke()
+        val sess = ctx.first.first
+        if (!sess.checkDragging()) return false
+        sess.updateDraggingFlag(false)
+        ctx.second.first.requestRepaint()
         return true
     }
 
     override fun handleMouseMoved(canvasX: Double, canvasY: Double): Boolean {
-        if (checkDragging()) return false
-        val active = activeInspector() ?: return false
+        val sess = ctx.first.first
+        if (sess.checkDragging()) return false
+        val active = sess.activeInspector() ?: return false
         val hovered = computeHoverAt(active, canvasX, canvasY)
-        if (hovered != checkHovered()) {
-            updateHoveredFlag(hovered)
-            callbacks.second?.invoke()
+        if (hovered != sess.checkHovered()) {
+            sess.updateHoveredFlag(hovered)
+            ctx.second.first.requestRepaint()
         }
-        return checkHovered()
+        return sess.checkHovered()
     }
 
     private fun computeHoverAt(active: ITrajectoryInspector, canvasX: Double, canvasY: Double): Boolean {
-        val tester = context.third
+        val tester = ctx.first.second
         if (tester.isOverProjectile(canvasX, canvasY)) return true
         if (tester.isOverTarget(canvasX, canvasY)) return false
         return tester.findCurvePointWithinThreshold(active, canvasX, canvasY) != null
     }
 
     private fun snapToPoint(point: ISpanishKinematicView) {
-        updateSelectedPoint(point)
-        context.first.updateProjectilePosition(context.second.toCanvasX(point.x), context.second.toCanvasY(point.y))
-        callbacks.first?.invoke(point)
+        ctx.first.first.updateSelectedPoint(point)
+        ctx.second.first.commitSelectedPoint(point)
     }
 
     override fun install(canvas: Canvas) {
-        installer.bind(canvas)
+        ctx.second.second.bind(canvas)
+    }
+}
+
+/**
+ * Ensambladores predeterminados de puertos y sesión de scrubbing (DIP).
+ */
+object ScrubbingPortsWiring : IScrubbingPortsWiring {
+    override fun createPorts(spec: IScrubbingInitSpec): Pair<IScrubbingHitTester, IScrubbingSyncPort> {
+        val tester = ScrubbingHitTester(spec.stateModel(), spec.coordTransformer(), spec.sceneConfig(), spec.hitThreshold(), spec.projectileRadius())
+        val sync = ScrubbingSyncPort(spec.stateModel(), spec.coordTransformer(), { pt -> spec.notifyPointSelected(pt) }, { spec.notifyRepaint() })
+        return Pair(tester, sync)
+    }
+}
+
+object ScrubbingWiring : IScrubbingWiring {
+    override fun createController(spec: IScrubbingInitSpec): IScrubbingController {
+        val ports = ScrubbingPortsWiring.createPorts(spec)
+        return DefaultScrubbingController(ScrubbingSession(), ports.first, ports.second, ::ScrubbingCanvasInstaller)
+    }
+}
+
+/**
+ * Fachada de controlador de scrubbing compatible con construcción estándar e inyección (SRP + DIP).
+ */
+class ScrubbingController(
+    private val delegate: IScrubbingController
+) : IScrubbingController by delegate {
+
+    constructor(
+        state: ISimulationState,
+        transformer: CoordinateTransformer,
+        cfg: ISceneConfig,
+        onPointSelected: ((ISpanishKinematicView) -> Unit)? = null,
+        onRepaint: (() -> Unit)? = null,
+        hitThresholdPixels: Double = 40.0,
+        projectileHitRadius: Double = 22.0
+    ) : this(
+        ScrubbingWiring.createController(
+            ScrubbingInitSpec(state, transformer, cfg, onPointSelected, onRepaint, hitThresholdPixels, projectileHitRadius)
+        )
+    )
+
+    override fun disable() {
+        delegate.disable()
     }
 }

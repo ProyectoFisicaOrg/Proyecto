@@ -9,13 +9,17 @@ import javafx.scene.text.FontWeight
 /**
  * Coordenadas encapsuladas de anclaje y dimensiones del lienzo para posicionar el tooltip (SRP + Encapsulación).
  */
-class TooltipAnchor(
-    targetX: Double,
-    targetY: Double,
-    canvasWidth: Double = 900.0,
-    canvasHeight: Double = 550.0
+@ConsistentCopyVisibility
+data class TooltipAnchor internal constructor(
+    private val values: List<Double>
 ) : ITooltipAnchor {
-    private val values: List<Double> = listOf(targetX, targetY, canvasWidth, canvasHeight)
+
+    constructor(
+        targetX: Double,
+        targetY: Double,
+        canvasWidth: Double = 900.0,
+        canvasHeight: Double = 550.0
+    ) : this(listOf(targetX, targetY, canvasWidth, canvasHeight))
 
     override fun x(): Double {
         return values[0]
@@ -103,10 +107,10 @@ class TooltipRenderer(
 
     override fun formatLines(point: ISpanishKinematicView): List<String> {
         val active = cfg.first[0] > 0.0
-        val spd = if (active) point.speed else 0.0
+        val spd = if (active) point.speedValue() else 0.0
         return listOf(
             String.format(Locale.US, "Velocidad: %.2f m/s", spd),
-            String.format(Locale.US, "Altura (Y): %.2f m", point.height)
+            String.format(Locale.US, "Altura (Y): %.2f m", point.heightValue())
         )
     }
 
@@ -123,19 +127,22 @@ class TooltipRenderer(
     }
 
     private fun drawBubbleBox(gc: GraphicsContext, bounds: ITooltipBounds) {
+        val bx = bounds.leftX()
+        val by = bounds.topY()
         gc.fill = Color.rgb(0, 0, 0, 0.40)
-        gc.fillRoundRect(bounds.x + 2.0, bounds.y + 3.0, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
+        gc.fillRoundRect(bx + 2.0, by + 3.0, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
         gc.fill = Color.rgb(15, 23, 42, 0.94)
-        gc.fillRoundRect(bounds.x, bounds.y, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
+        gc.fillRoundRect(bx, by, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
         gc.stroke = Color.rgb(99, 102, 241, 0.85)
         gc.lineWidth = 1.4
-        gc.strokeRoundRect(bounds.x, bounds.y, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
+        gc.strokeRoundRect(bx, by, bounds.boxWidth(), bounds.boxHeight(), 10.0, 10.0)
     }
 
     private fun drawPointerArrow(gc: GraphicsContext, bounds: ITooltipBounds, targetX: Double, targetY: Double) {
-        val arrowX = targetX.coerceIn(bounds.x + 12.0, bounds.right() - 12.0)
-        val isAbove = bounds.y < targetY
-        val arrowY = if (isAbove) bounds.bottom() else bounds.y
+        val by = bounds.topY()
+        val arrowX = targetX.coerceIn(bounds.leftX() + 12.0, bounds.right() - 12.0)
+        val isAbove = by < targetY
+        val arrowY = if (isAbove) bounds.bottom() else by
         val tipDelta = if (isAbove) 5.0 else -5.0
         gc.fill = Color.rgb(99, 102, 241, 0.9)
         gc.beginPath()
@@ -147,17 +154,19 @@ class TooltipRenderer(
     }
 
     private fun drawTelemetryValues(gc: GraphicsContext, bounds: ITooltipBounds, point: ISpanishKinematicView) {
+        val bx = bounds.leftX()
+        val by = bounds.topY()
         gc.font = Font.font("System", FontWeight.NORMAL, 10.5)
         gc.fill = Color.rgb(148, 163, 184)
-        gc.fillText("v:", bounds.x + 10.0, bounds.y + 20.0)
-        gc.fillText("h:", bounds.x + 10.0, bounds.y + 38.0)
+        gc.fillText("v:", bx + 10.0, by + 20.0)
+        gc.fillText("h:", bx + 10.0, by + 38.0)
         gc.font = Font.font("System", FontWeight.BOLD, 12.0)
         gc.fill = Color.rgb(250, 204, 21)
-        gc.fillText(String.format(Locale.US, "%.2f m/s", point.speed), bounds.x + 26.0, bounds.y + 20.0)
+        gc.fillText(String.format(Locale.US, "%.2f m/s", point.speedValue()), bx + 26.0, by + 20.0)
         gc.fill = Color.rgb(52, 211, 153)
-        gc.fillText(String.format(Locale.US, "%.2f m", point.height), bounds.x + 26.0, bounds.y + 38.0)
+        gc.fillText(String.format(Locale.US, "%.2f m", point.heightValue()), bx + 26.0, by + 38.0)
         gc.font = Font.font("System", FontWeight.NORMAL, 9.5)
         gc.fill = Color.rgb(148, 163, 184, 0.8)
-        gc.fillText(String.format(Locale.US, "t = %.2fs", point.time), bounds.right() - 48.0, bounds.y + 49.0)
+        gc.fillText(String.format(Locale.US, "t = %.2fs", point.timeValue()), bounds.right() - 48.0, by + 49.0)
     }
 }

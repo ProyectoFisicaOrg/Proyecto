@@ -16,10 +16,4 @@ interface IAnimationEngine {
     fun isOutOfBounds(canvasX: Double, canvasY: Double): Boolean
     fun tick(now: Long)
     fun interpolatePosition(matrix: ITrajectoryMatrixSummary, elapsed: Double): Pair<Double, Double>
-
-    var timeScale: Double
-        get() = currentTimeScale()
-        set(value) = updateTimeScale(value)
-
-    val currentMatrix: ITrajectoryMatrixSummary? get() = activeTrajectoryMatrix()
 }

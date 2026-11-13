@@ -1,6 +1,8 @@
 package org.example.scrubbing
 
 import java.util.Locale
+import org.example.model.ITrajectoryMatrixSummary
+import org.example.telemetry.DefaultTelemetryProvider
 
 /**
  * Punto discreto encapsulado sobre la curva de la trayectoria con vistas bilingües (SRP + Encapsulación).
@@ -89,5 +91,24 @@ data class FlightSummary internal constructor(
         fun of(tiempoTotalCaida: Double, distanciaRecorrida: Double): FlightSummary {
             return FlightSummary(tiempoTotalCaida, distanciaRecorrida)
         }
+    }
+}
+
+/**
+ * Soporte predeterminado de conversión de telemetría a modelos de inspección visual (SRP + DIP).
+ */
+class DefaultSpanishInspectorSupport : ISpanishInspectorSupport {
+    override fun inspectPoint(matrix: ITrajectoryMatrixSummary, physicsX: Double, physicsY: Double): ISpanishKinematicView {
+        val st = DefaultTelemetryProvider.buildApi().getInstantaneousState(matrix, physicsX, physicsY)
+        return TrajectoryPoint(st.horizontalCoord(), st.altitude(), st.elapsedTime(), st.altitude(), st.scalarSpeed())
+    }
+
+    override fun inspectPointByX(matrix: ITrajectoryMatrixSummary, physicsX: Double): ISpanishKinematicView {
+        val st = DefaultTelemetryProvider.buildApi().getInstantaneousStateByX(matrix, physicsX)
+        return TrajectoryPoint(st.horizontalCoord(), st.altitude(), st.elapsedTime(), st.altitude(), st.scalarSpeed())
+    }
+
+    override fun summarize(matrix: ITrajectoryMatrixSummary): ISpanishFlightSummaryView {
+        return FlightSummary(matrix.totalTimeOfFlight(), matrix.horizontalRange())
     }
 }

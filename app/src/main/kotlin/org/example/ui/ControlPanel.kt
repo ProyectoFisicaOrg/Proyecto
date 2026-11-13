@@ -133,6 +133,19 @@ class ControlWidgetFactory : IControlWidgetFactory {
 }
 
 /**
+ * Ensamblador de fila de slider y campo de texto sincronizados (DIP).
+ */
+object SliderRowWiring : ISliderRowWiring {
+    override fun bindRow(factory: IControlWidgetFactory, spec: INumericParameterSpec, initial: Double, onCommit: (Double) -> Unit): Pair<VBox, IParameterControlBinding> {
+        val slider = factory.createSlider(spec.min(), spec.max(), initial, spec.step())
+        val textField = factory.createValueField(spec.format(initial))
+        val binding = ParameterControlBinding(spec, JavaFxSliderAdapter(slider), JavaFxTextInputAdapter(textField), onCommit)
+        binding.bind()
+        return Pair(factory.createControlRow(spec.title(), slider, textField), binding)
+    }
+}
+
+/**
  * Grupo cohesivo de sliders y campos editables sincronizados bidireccionalmente con [ISimulationState] (SRP + DIP).
  */
 class ParameterSlidersSection(
@@ -153,41 +166,36 @@ class ParameterSlidersSection(
     }
 
     private fun buildBoundRow(spec: INumericParameterSpec, initial: Double, onCommit: (Double) -> Unit): VBox {
-        val factory = ctx.first.second
-        val slider = factory.createSlider(spec.min(), spec.max(), initial, spec.step())
-        val textField = factory.createValueField(spec.format(initial))
-        val binding: IParameterControlBinding =
-            ParameterControlBinding(spec, JavaFxSliderAdapter(slider), JavaFxTextInputAdapter(textField), onCommit)
-        binding.bind()
-        ctx.second.add(binding)
-        return factory.createControlRow(spec.title(), slider, textField)
+        val rowAndBinding = SliderRowWiring.bindRow(ctx.first.second, spec, initial, onCommit)
+        ctx.second.add(rowAndBinding.second)
+        return rowAndBinding.first
     }
 
     private fun buildAngleControl(): VBox {
         val st = ctx.first.first
         val spec: INumericParameterSpec = NumericParameterSpec("ÁNGULO (0-90°)", 0.0, 90.0, 45.0, false)
-        return buildBoundRow(spec, st.angle) { v ->
-            st.angle = v
-            if (!st.isAnimating) ctx.first.third.invoke()
+        return buildBoundRow(spec, st.currentAngle()) { v ->
+            st.updateAngle(v)
+            if (!st.checkAnimating()) ctx.first.third.invoke()
         }
     }
 
     private fun buildVelocityControl(): VBox {
         val st = ctx.first.first
         val spec: INumericParameterSpec = NumericParameterSpec("VELOCIDAD INICIAL (m/s)", 10.0, 100.0, 50.0, false)
-        return buildBoundRow(spec, st.velocity) { v -> st.velocity = v }
+        return buildBoundRow(spec, st.currentVelocity()) { v -> st.updateVelocity(v) }
     }
 
     private fun buildGravityControl(): VBox {
         val st = ctx.first.first
         val spec: INumericParameterSpec = NumericParameterSpec("GRAVEDAD (m/s²)", 1.0, 30.0, 9.8, true)
-        return buildBoundRow(spec, st.gravity) { v -> st.gravity = v }
+        return buildBoundRow(spec, st.currentGravity()) { v -> st.updateGravity(v) }
     }
 
     private fun buildMassControl(): VBox {
         val st = ctx.first.first
         val spec: INumericParameterSpec = NumericParameterSpec("MASA (kg)", 1.0, 50.0, 10.0, false)
-        return buildBoundRow(spec, st.mass) { v -> st.mass = v }
+        return buildBoundRow(spec, st.currentMass()) { v -> st.updateMass(v) }
     }
 }
 
@@ -229,16 +237,19 @@ class StatusBannerPresenter : IStatusBannerPresenter {
  * Grupo cohesivo de botones de acción del panel de control (SRP + DIP).
  */
 class ActionButtonsSection(
-    private val factory: IControlWidgetFactory,
+    factory: IControlWidgetFactory,
     onFire: () -> Unit,
     onReset: (() -> Unit)?,
     onRandomizeTarget: (() -> Unit)?
 ) : IActionButtonsSection {
-    private val actions: Triple<() -> Unit, (() -> Unit)?, (() -> Unit)?> = Triple(onFire, onReset, onRandomizeTarget)
-    private val buttons = mutableListOf<Button>()
+    private val ctx: Pair<Pair<IControlWidgetFactory, MutableList<Button>>, Triple<() -> Unit, (() -> Unit)?, (() -> Unit)?>> =
+        Pair(Pair(factory, mutableListOf()), Triple(onFire, onReset, onRandomizeTarget))
 
     override fun buildButtons(): List<Button> {
-        buttons.clear()
+        val factory = ctx.first.first
+        val list = ctx.first.second
+        val actions = ctx.second
+        list.clear()
         val fireBtn = factory.createActionButton(
             "DISPARAR", 45.0,
             "-fx-background-color: linear-gradient(to right, #e94560, #c73650); -fx-text-fill: white; -fx-background-radius: 8; -fx-cursor: hand;"
@@ -251,15 +262,72 @@ class ActionButtonsSection(
             "REINICIAR", 34.0,
             "-fx-background-color: #334155; -fx-text-fill: #e2e8f0; -fx-background-radius: 8; -fx-cursor: hand;"
         ) { actions.second?.invoke() }
-        buttons.addAll(listOf(fireBtn, randomBtn, resetBtn))
-        return buttons.toList()
+        list.addAll(listOf(fireBtn, randomBtn, resetBtn))
+        return list.toList()
     }
 
     override fun setAnimating(animating: Boolean) {
-        if (buttons.isEmpty()) return
-        buttons[0].isDisable = animating
-        buttons[0].text = if (animating) "DISPARANDO..." else "DISPARAR"
-        for (i in 1 until buttons.size) buttons[i].isDisable = animating
+        val list = ctx.first.second
+        if (list.isEmpty()) return
+        list[0].isDisable = animating
+        list[0].text = if (animating) "DISPARANDO..." else "DISPARAR"
+        for (i in 1 until list.size) list[i].isDisable = animating
+    }
+}
+
+/**
+ * Especificación inmutable de estado y callbacks de acción para ensamblar el panel (SRP).
+ */
+@ConsistentCopyVisibility
+data class ControlInitSpec internal constructor(
+    private val pack: Pair<ISimulationState, Pair<Pair<() -> Unit, () -> Unit>, Pair<(() -> Unit)?, (() -> Unit)?>>>
+) : IControlInitSpec {
+
+    constructor(
+        state: ISimulationState,
+        onFire: () -> Unit,
+        onAngleChange: () -> Unit,
+        onReset: (() -> Unit)? = null,
+        onRandomizeTarget: (() -> Unit)? = null
+    ) : this(Pair(state, Pair(Pair(onFire, onAngleChange), Pair(onReset, onRandomizeTarget))))
+
+    override fun stateModel(): ISimulationState {
+        return pack.first
+    }
+
+    override fun triggerFire() {
+        pack.second.first.first.invoke()
+    }
+
+    override fun triggerAngleChange() {
+        pack.second.first.second.invoke()
+    }
+
+    override fun triggerReset() {
+        pack.second.second.first?.invoke()
+    }
+
+    override fun triggerRandomizeTarget() {
+        pack.second.second.second?.invoke()
+    }
+}
+
+/**
+ * Ensambladores predeterminados de secciones y panel de controles conforme a DIP.
+ */
+object ControlSectionsWiring : IControlSectionsWiring {
+    override fun createPair(spec: IControlInitSpec, factory: IControlWidgetFactory): Pair<ISlidersSection, IActionButtonsSection> {
+        val sliders = ParameterSlidersSection(spec.stateModel(), factory) { spec.triggerAngleChange() }
+        val buttons = ActionButtonsSection(factory, { spec.triggerFire() }, { spec.triggerReset() }, { spec.triggerRandomizeTarget() })
+        return Pair(sliders, buttons)
+    }
+}
+
+object ControlPanelWiring : IControlPanelWiring {
+    override fun assemble(spec: IControlInitSpec): IControlPanel {
+        val wf = ControlWidgetFactory()
+        val sections = ControlSectionsWiring.createPair(spec, wf)
+        return ControlPanel(wf, StatusBannerPresenter(), sections.first, sections.second)
     }
 }
 
@@ -267,57 +335,45 @@ class ActionButtonsSection(
  * Panel principal de controles de la simulación desacoplado mediante interfaces (SRP + DIP).
  */
 class ControlPanel(
-    private val widgetFactory: IControlWidgetFactory,
-    private val statusBanner: IStatusBannerPresenter,
+    widgetFactory: IControlWidgetFactory,
+    statusBanner: IStatusBannerPresenter,
     slidersSection: ISlidersSection,
     buttonsSection: IActionButtonsSection
 ) : IControlPanel {
-
-    constructor(
-        state: ISimulationState,
-        onFire: () -> Unit,
-        onAngleChange: () -> Unit,
-        onReset: (() -> Unit)? = null,
-        onRandomizeTarget: (() -> Unit)? = null,
-        widgetFactory: IControlWidgetFactory = ControlWidgetFactory(),
-        statusBanner: IStatusBannerPresenter = StatusBannerPresenter()
-    ) : this(
-        widgetFactory = widgetFactory,
-        statusBanner = statusBanner,
-        slidersSection = ParameterSlidersSection(state, widgetFactory, onAngleChange),
-        buttonsSection = ActionButtonsSection(widgetFactory, onFire, onReset, onRandomizeTarget)
-    )
-
-    private val interactiveSections: Pair<ISlidersSection, IActionButtonsSection> = Pair(slidersSection, buttonsSection)
+    private val ctx: Pair<Pair<IControlWidgetFactory, IStatusBannerPresenter>, Pair<ISlidersSection, IActionButtonsSection>> =
+        Pair(Pair(widgetFactory, statusBanner), Pair(slidersSection, buttonsSection))
 
     override fun build(): VBox {
+        val wf = ctx.first.first
+        val banner = ctx.first.second
+        val sections = ctx.second
         val title = Label("CONTROLES").apply {
             style = "-fx-font-family: 'System'; -fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: white;"
         }
         return VBox(14.0).apply {
             children.add(title)
-            children.addAll(interactiveSections.first.buildRows())
-            children.addAll(interactiveSections.second.buildButtons())
-            children.addAll(statusBanner.buildCard(), widgetFactory.createLegend())
+            children.addAll(sections.first.buildRows())
+            children.addAll(sections.second.buildButtons())
+            children.addAll(banner.buildCard(), wf.createLegend())
             prefWidth = 320.0
             style = "-fx-alignment: top-center; -fx-padding: 20; -fx-background-color: #16213e; -fx-background-radius: 12; -fx-border-color: #0f3460; -fx-border-width: 1; -fx-border-radius: 12;"
         }
     }
 
     override fun showCollisionResult(result: ICollisionResult) {
-        statusBanner.showCollision(result)
+        ctx.first.second.showCollision(result)
     }
 
     override fun showOutOfBoundsMessage() {
-        statusBanner.showOutOfBounds()
+        ctx.first.second.showOutOfBounds()
     }
 
     override fun clearCollisionResult() {
-        statusBanner.showInFlight()
+        ctx.first.second.showInFlight()
     }
 
     override fun setAnimating(animating: Boolean) {
-        interactiveSections.first.setDisabled(animating)
-        interactiveSections.second.setAnimating(animating)
+        ctx.second.first.setDisabled(animating)
+        ctx.second.second.setAnimating(animating)
     }
 }

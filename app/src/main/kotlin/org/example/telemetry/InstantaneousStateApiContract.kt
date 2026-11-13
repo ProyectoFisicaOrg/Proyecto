@@ -10,7 +10,7 @@ import org.example.model.ITrajectoryMatrixSummary
 interface InstantaneousStateApi {
     fun getInstantaneousState(matrix: ITrajectoryMatrixSummary, x: Double, y: Double): IInstantaneousState
     fun getInstantaneousState(matrix: ITrajectoryMatrixSummary, position: IPosition): IInstantaneousState =
-        getInstantaneousState(matrix, position.x, position.y)
+        getInstantaneousState(matrix, position.horizontal(), position.vertical())
     fun getInstantaneousStateByX(matrix: ITrajectoryMatrixSummary, x: Double): IInstantaneousState
     fun getInstantaneousState(points: List<ITrajectoryPoint>, x: Double, y: Double): IInstantaneousState
     fun getInstantaneousStateByX(points: List<ITrajectoryPoint>, x: Double): IInstantaneousState

@@ -2,8 +2,6 @@ package org.example.scrubbing
 
 import org.example.model.ITrajectoryMatrixSummary
 import org.example.rendering.CoordinateTransformer
-import org.example.telemetry.DefaultTelemetryProvider
-import org.example.telemetry.InstantaneousStateApi
 
 /**
  * Adaptador que implementa [ITrajectoryInspector] desacoplado mediante interfaces (Adapter + DIP + SRP).
@@ -11,33 +9,36 @@ import org.example.telemetry.InstantaneousStateApi
 class PhysicsTrajectoryInspectorAdapter(
     private val matrixRef: ITrajectoryMatrixSummary,
     private val transformer: CoordinateTransformer,
-    private val telemetryApi: InstantaneousStateApi = DefaultTelemetryProvider().buildApi(),
-    private val pointFactory: (Double, Double, Double, Double, Double) -> ISpanishKinematicView = ::TrajectoryPoint,
-    private val summaryFactory: (Double, Double) -> ISpanishFlightSummaryView = ::FlightSummary
+    private val support: ISpanishInspectorSupport
 ) : ITrajectoryInspector {
-    private val sessionContext: Pair<ITrajectoryMatrixSummary, InstantaneousStateApi> = Pair(matrixRef, telemetryApi)
+
+    constructor(
+        matrixRef: ITrajectoryMatrixSummary,
+        transformer: CoordinateTransformer,
+        supportProvider: () -> ISpanishInspectorSupport = ::DefaultSpanishInspectorSupport
+    ) : this(matrixRef, transformer, supportProvider())
 
     fun boundMatrix(): ITrajectoryMatrixSummary {
-        return sessionContext.first
+        return matrixRef
     }
 
     override fun findNearestPoint(physicsX: Double, physicsY: Double): ISpanishKinematicView {
-        val state = sessionContext.second.getInstantaneousState(sessionContext.first, physicsX, physicsY)
-        return pointFactory(state.x, state.height, state.time, state.height, state.speed)
+        val tx = if (transformer.toCanvasDistance(1.0) >= 0.0) physicsX else physicsX
+        return support.inspectPoint(matrixRef, tx, physicsY)
     }
 
     override fun findNearestPointFromCursor(cursorCanvasX: Double, cursorCanvasY: Double): ISpanishKinematicView {
         val physicsX = transformer.toPhysicsX(cursorCanvasX)
         val physicsY = transformer.toPhysicsY(cursorCanvasY)
-        return findNearestPoint(physicsX, physicsY)
+        return support.inspectPoint(matrixRef, physicsX, physicsY)
     }
 
     override fun findNearestPointByX(physicsX: Double): ISpanishKinematicView {
-        val state = sessionContext.second.getInstantaneousStateByX(sessionContext.first, physicsX)
-        return pointFactory(state.x, state.height, state.time, state.height, state.speed)
+        val tx = if (transformer.toCanvasDistance(1.0) >= 0.0) physicsX else physicsX
+        return support.inspectPointByX(matrixRef, tx)
     }
 
     override fun getFlightSummary(): ISpanishFlightSummaryView {
-        return summaryFactory(sessionContext.first.timeOfFlight, sessionContext.first.range)
+        return support.summarize(matrixRef)
     }
 }

@@ -17,6 +17,4 @@ interface IHudRenderer {
     fun checkVisible(): Boolean
     fun formatLines(summary: ISpanishFlightSummaryView): List<String>
     fun render(gc: GraphicsContext, summary: ISpanishFlightSummaryView)
-
-    val isVisible: Boolean get() = checkVisible()
 }

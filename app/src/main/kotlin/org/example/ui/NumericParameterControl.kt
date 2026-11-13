@@ -30,17 +30,38 @@ class NumericInputValidator : INumericInputValidator {
 }
 
 /**
+ * Instancia compartida por defecto de [INumericInputValidator] (DIP).
+ */
+object DefaultNumericValidator : INumericInputValidator {
+    private val delegate: INumericInputValidator = NumericInputValidator()
+
+    override fun isValidPartial(text: String, allowDecimal: Boolean): Boolean {
+        return delegate.isValidPartial(text, allowDecimal)
+    }
+
+    override fun parseOrNull(text: String): Double? {
+        return delegate.parseOrNull(text)
+    }
+}
+
+/**
  * Especificación encapsulada de límites, valor por defecto y formato de un parámetro numérico (SRP + Encapsulación).
  */
-class NumericParameterSpec(
+@ConsistentCopyVisibility
+data class NumericParameterSpec internal constructor(
     private val labelTitle: String,
-    minVal: Double,
-    maxVal: Double,
-    defaultVal: Double,
-    allowDecimal: Boolean,
-    private val defaultValidator: INumericInputValidator = NumericInputValidator()
+    private val numericConfig: List<Double>,
+    private val defaultValidator: INumericInputValidator
 ) : INumericParameterSpec {
-    private val numericConfig: List<Double> = listOf(minVal, maxVal, defaultVal, if (allowDecimal) 1.0 else 0.0)
+
+    constructor(
+        labelTitle: String,
+        minVal: Double,
+        maxVal: Double,
+        defaultVal: Double,
+        allowDecimal: Boolean,
+        defaultValidator: INumericInputValidator = DefaultNumericValidator
+    ) : this(labelTitle, listOf(minVal, maxVal, defaultVal, if (allowDecimal) 1.0 else 0.0), defaultValidator)
 
     override fun title(): String {
         return labelTitle
@@ -93,7 +114,7 @@ class ParameterControlBinding(
     slider: ISliderPort,
     textInput: ITextInputPort,
     private val onValueCommitted: (Double) -> Unit,
-    private val validator: INumericInputValidator = NumericInputValidator()
+    private val validator: INumericInputValidator = DefaultNumericValidator
 ) : IParameterControlBinding {
     private val ports: Pair<ISliderPort, ITextInputPort> = Pair(slider, textInput)
     private var syncing: Boolean = false

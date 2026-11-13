@@ -5,10 +5,18 @@ import org.example.model.ITrajectoryMatrixSummary
 /**
  * Proveedor ligero inyectable de [InstantaneousStateApi] conforme a DIP (SRP + DIP).
  */
-class DefaultTelemetryProvider : ITelemetryFactory {
+object DefaultTelemetryProvider : ITelemetryFactory {
 
     override fun buildApi(): InstantaneousStateApi {
-        return DefaultInstantaneousStateApi(EuclideanNearestNeighborSearcher())
+        return createApiWithSearcher(createSearcher())
+    }
+
+    fun createSearcher(): TrajectoryNearestNeighborSearcher {
+        return EuclideanNearestNeighborSearcher()
+    }
+
+    fun createApiWithSearcher(searcher: TrajectoryNearestNeighborSearcher): InstantaneousStateApi {
+        return DefaultInstantaneousStateApi(searcher, ::BoundTrajectoryInspector)
     }
 }
 
@@ -16,8 +24,8 @@ class DefaultTelemetryProvider : ITelemetryFactory {
  * Fábrica para ensamblar componentes de telemetría e inspección interactiva (SRP + DIP).
  */
 class TelemetryFactory(
-    searcher: TrajectoryNearestNeighborSearcher = EuclideanNearestNeighborSearcher(),
-    apiBuilder: (TrajectoryNearestNeighborSearcher) -> InstantaneousStateApi = ::createDefaultApi
+    searcher: TrajectoryNearestNeighborSearcher = DefaultTelemetryProvider.createSearcher(),
+    apiBuilder: (TrajectoryNearestNeighborSearcher) -> InstantaneousStateApi = DefaultTelemetryProvider::createApiWithSearcher
 ) : ITelemetryFactory {
     private val deps: Pair<TrajectoryNearestNeighborSearcher, (TrajectoryNearestNeighborSearcher) -> InstantaneousStateApi> =
         Pair(searcher, apiBuilder)
@@ -27,16 +35,12 @@ class TelemetryFactory(
     }
 
     companion object {
-        private fun createDefaultApi(searcher: TrajectoryNearestNeighborSearcher): InstantaneousStateApi {
-            return DefaultInstantaneousStateApi(searcher)
-        }
-
         fun createSearcher(): TrajectoryNearestNeighborSearcher {
-            return EuclideanNearestNeighborSearcher()
+            return DefaultTelemetryProvider.createSearcher()
         }
 
         fun createApi(searcher: TrajectoryNearestNeighborSearcher = createSearcher()): InstantaneousStateApi {
-            return createDefaultApi(searcher)
+            return DefaultTelemetryProvider.createApiWithSearcher(searcher)
         }
 
         fun createInspector(matrix: ITrajectoryMatrixSummary, api: InstantaneousStateApi = createApi()): TrajectoryInspector {

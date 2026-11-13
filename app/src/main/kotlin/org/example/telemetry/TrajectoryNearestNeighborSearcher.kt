@@ -24,8 +24,8 @@ class EuclideanNearestNeighborSearcher : TrajectoryNearestNeighborSearcher {
 
     override fun findNearestIndexByX(points: List<ITrajectoryPoint>, targetX: Double): Int {
         require(points.isNotEmpty()) { "La lista de puntos no puede estar vacía" }
-        if (targetX <= points.first().x) return 0
-        if (targetX >= points.last().x) return points.size - 1
+        if (targetX <= points.first().posX()) return 0
+        if (targetX >= points.last().posX()) return points.size - 1
         val lowerIdx = lowerBoundByX(points, targetX)
         return pickCloserNeighbor(points, lowerIdx, targetX)
     }
@@ -48,21 +48,21 @@ class EuclideanNearestNeighborSearcher : TrajectoryNearestNeighborSearcher {
         var high = points.size - 1
         while (low < high) {
             val mid = (low + high) ushr 1
-            if (points[mid].x < targetX) low = mid + 1 else high = mid
+            if (points[mid].posX() < targetX) low = mid + 1 else high = mid
         }
         return low
     }
 
     private fun pickCloserNeighbor(points: List<ITrajectoryPoint>, idx: Int, targetX: Double): Int {
         if (idx <= 0) return 0
-        val prevDiff = abs(points[idx - 1].x - targetX)
-        val currDiff = abs(points[idx].x - targetX)
+        val prevDiff = abs(points[idx - 1].posX() - targetX)
+        val currDiff = abs(points[idx].posX() - targetX)
         return if (prevDiff <= currDiff) idx - 1 else idx
     }
 
     private fun distanceSquared(p: ITrajectoryPoint, x: Double, y: Double): Double {
-        val dx = p.x - x
-        val dy = p.y - y
+        val dx = p.posX() - x
+        val dy = p.posY() - y
         return dx * dx + dy * dy
     }
 }

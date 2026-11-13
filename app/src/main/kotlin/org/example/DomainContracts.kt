@@ -8,7 +8,4 @@ interface IPosition {
     fun vertical(): Double
     fun distanceTo(other: IPosition): Double
     fun translate(dx: Double, dy: Double): IPosition
-
-    val x: Double get() = horizontal()
-    val y: Double get() = vertical()
 }
