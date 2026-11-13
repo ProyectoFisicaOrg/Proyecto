@@ -36,50 +36,50 @@ class TrajectoryMatrixTest : ISimulationTestSuite {
     @Test
     fun test_generator_creates_matrix_with_correct_number_of_points() {
         val matrix = generate(samples = 100)
-        assertTrue(matrix.size >= 100)
+        assertTrue(matrix.pointCount() >= 100)
     }
 
     @Test
     fun test_generator_stores_correct_time_of_flight() {
         val expected = builder.kinematics().calculator().calculateTimeOfFlight(defaultParams())!!
-        assertEquals(expected, generate().timeOfFlight, 1e-10)
+        assertEquals(expected, generate().totalTimeOfFlight(), 1e-10)
     }
 
     @Test
     fun test_generator_stores_correct_range() {
         val expected = builder.kinematics().calculator().calculateRange(defaultParams())!!
-        assertEquals(expected, generate().range, 1e-10)
+        assertEquals(expected, generate().horizontalRange(), 1e-10)
     }
 
     @Test
     fun test_generator_stores_correct_max_height() {
         val expected = builder.kinematics().calculator().calculateMaxHeight(defaultParams())
-        assertEquals(expected, generate().maxHeight, 1e-10)
+        assertEquals(expected, generate().peakHeight(), 1e-10)
     }
 
     @Test
     fun test_launch_point_is_at_origin() {
-        val launch = generate().launchPoint
-        assertEquals(0.0, launch.x, 1e-10)
-        assertEquals(0.0, launch.y, 1e-10)
-        assertEquals(0.0, launch.t, 1e-10)
+        val launch = generate().firstPoint()
+        assertEquals(0.0, launch.posX(), 1e-10)
+        assertEquals(0.0, launch.posY(), 1e-10)
+        assertEquals(0.0, launch.timeSeconds(), 1e-10)
     }
 
     @Test
     fun test_impact_point_has_y_approximately_zero() {
-        assertTrue(abs(generate().impactPoint.y) < 0.1)
+        assertTrue(abs(generate().finalPoint().posY()) < 0.1)
     }
 
     @Test
     fun test_points_are_ordered_chronologically() {
-        val pts = generate().points
-        for (i in 1 until pts.size) assertTrue(pts[i].t >= pts[i - 1].t)
+        val pts = generate().trajectoryPoints()
+        for (i in 1 until pts.size) assertTrue(pts[i].timeSeconds() >= pts[i - 1].timeSeconds())
     }
 
     @Test
     fun test_x_coordinates_are_monotonically_increasing() {
-        val pts = generate().points
-        for (i in 1 until pts.size) assertTrue(pts[i].x >= pts[i - 1].x)
+        val pts = generate().trajectoryPoints()
+        for (i in 1 until pts.size) assertTrue(pts[i].posX() >= pts[i - 1].posX())
     }
 }
 
@@ -103,54 +103,58 @@ class TrajectorySearchAndQueryTest : ISimulationTestSuite {
 
     @Test
     fun test_findClosestByX_returns_correct_point() {
-        val closest = fixture.first.findClosestByX(generate(100).points, 10.0)
-        assertTrue(abs(closest.x - 10.0) < 0.5)
+        val closest = fixture.first.findClosestByX(generate(100).trajectoryPoints(), 10.0)
+        assertTrue(abs(closest.posX() - 10.0) < 0.5)
     }
 
     @Test
     fun test_findClosestByX_at_exact_point_returns_that_point() {
         val matrix = generate(100)
-        val targetX = matrix.points[matrix.size / 2].x
-        assertEquals(targetX, fixture.first.findClosestByX(matrix.points, targetX).x, 1e-10)
+        val pts = matrix.trajectoryPoints()
+        val targetX = pts[matrix.pointCount() / 2].posX()
+        assertEquals(targetX, fixture.first.findClosestByX(pts, targetX).posX(), 1e-10)
     }
 
     @Test
     fun test_findClosestByX_at_start_returns_first_point() {
         val matrix = generate()
-        assertEquals(matrix.points.first().x, fixture.first.findClosestByX(matrix.points, 0.0).x, 1e-10)
+        val pts = matrix.trajectoryPoints()
+        assertEquals(pts.first().posX(), fixture.first.findClosestByX(pts, 0.0).posX(), 1e-10)
     }
 
     @Test
     fun test_findClosestByX_at_end_returns_last_point() {
         val matrix = generate()
-        assertEquals(matrix.points.last().x, fixture.first.findClosestByX(matrix.points, matrix.range).x, 1e-10)
+        val pts = matrix.trajectoryPoints()
+        assertEquals(pts.last().posX(), fixture.first.findClosestByX(pts, matrix.horizontalRange()).posX(), 1e-10)
     }
 
     @Test
     fun test_findClosestIndexByX_returns_a_valid_index() {
         val matrix = generate(100)
-        assertTrue(fixture.first.findClosestIndexByX(matrix.points, 10.0) in 0 until matrix.size)
+        assertTrue(fixture.first.findClosestIndexByX(matrix.trajectoryPoints(), 10.0) in 0 until matrix.pointCount())
     }
 
     @Test
     fun test_subMatrix_returns_correct_range() {
         val matrix = generate(10)
+        val pts = matrix.trajectoryPoints()
         val sub = matrix.subMatrix(2, 5)
         assertEquals(3, sub.size)
-        assertEquals(matrix.points[2].x, sub[0].x, 1e-10)
-        assertEquals(matrix.points[4].x, sub[2].x, 1e-10)
+        assertEquals(pts[2].posX(), sub[0].posX(), 1e-10)
+        assertEquals(pts[4].posX(), sub[2].posX(), 1e-10)
     }
 
     @Test
     fun test_subMatrix_clamps_indices_out_of_range() {
         val matrix = generate(10)
-        assertEquals(matrix.size, matrix.subMatrix(-5, matrix.size + 10).size)
+        assertEquals(matrix.pointCount(), matrix.subMatrix(-5, matrix.pointCount() + 10).size)
     }
 
     @Test
     fun test_pointsAbove_filters_correctly() {
         val aboveZero = generate().pointsAbove(0.0)
-        assertTrue(aboveZero.isNotEmpty() && aboveZero.all { it.y >= 0.0 })
+        assertTrue(aboveZero.isNotEmpty() && aboveZero.all { it.posY() >= 0.0 })
     }
 }
 
@@ -175,34 +179,34 @@ class TrajectoryCollisionDetectionTest : ISimulationTestSuite {
     @Test
     fun test_checkCollision_returns_HIT_when_target_is_at_impact_point() {
         val matrix = generate()
-        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
-        assertEquals(CollisionStatus.HIT, collision.status)
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.horizontalRange(), radius = 2.0))
+        assertEquals(CollisionStatus.HIT, collision.collisionStatus())
         val impact = collision.impactResult()
         assertNotNull(impact)
-        assertEquals(matrix.range, impact.point.x, 2.0)
+        assertEquals(matrix.horizontalRange(), impact.impactPoint().posX(), 2.0)
     }
 
     @Test
     fun test_checkCollision_returns_MISS_when_target_is_far_from_impact() {
         val matrix = generate()
-        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
-        assertEquals(CollisionStatus.MISS, collision.status)
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.horizontalRange() + 100.0, radius = 1.0))
+        assertEquals(CollisionStatus.MISS, collision.collisionStatus())
     }
 
     @Test
     fun test_checkCollision_with_wide_target_near_impact_always_hits() {
         val matrix = generate()
-        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 50.0))
-        assertEquals(CollisionStatus.HIT, collision.status)
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.horizontalRange(), radius = 50.0))
+        assertEquals(CollisionStatus.HIT, collision.collisionStatus())
     }
 
     @Test
     fun test_impact_result_exposes_correct_target_info() {
         val matrix = generate()
-        val target = Target(centerX = matrix.range, radius = 2.0)
+        val target = Target(centerX = matrix.horizontalRange(), radius = 2.0)
         val collision = fixture.first.checkCollision(matrix, target)
-        assertEquals(CollisionStatus.HIT, collision.status)
-        assertEquals(target, collision.impactResult()?.target)
+        assertEquals(CollisionStatus.HIT, collision.collisionStatus())
+        assertEquals(target, collision.impactResult()?.hitTarget())
     }
 
     @Test
@@ -230,15 +234,16 @@ class TrajectoryCollisionDetectionTest : ISimulationTestSuite {
     @Test
     fun test_collision_message_contains_useful_info_on_HIT() {
         val matrix = generate()
-        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range, radius = 2.0))
-        assertTrue(collision.message.contains("Impacto") && collision.message.contains("x=") && collision.message.contains("t="))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.horizontalRange(), radius = 2.0))
+        val msg = collision.statusMessage()
+        assertTrue(msg.contains("Impacto") && msg.contains("x=") && msg.contains("t="))
     }
 
     @Test
     fun test_collision_message_contains_useful_info_on_MISS() {
         val matrix = generate()
-        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.range + 100.0, radius = 1.0))
-        assertTrue(collision.message.contains("fuera del objetivo"))
+        val collision = fixture.first.checkCollision(matrix, Target(centerX = matrix.horizontalRange() + 100.0, radius = 1.0))
+        assertTrue(collision.statusMessage().contains("fuera del objetivo"))
     }
 }
 
@@ -292,7 +297,7 @@ class TrajectoryDomainValidationTest : ISimulationTestSuite {
     fun test_matrix_works_with_different_angles() {
         for (angle in listOf(15.0, 30.0, 45.0, 60.0, 75.0)) {
             val matrix = fixture.first.kinematics().generator().generate(fixture.first.params(angleDeg = angle), 120)
-            assertTrue(matrix.size > 0 && matrix.timeOfFlight > 0 && matrix.range > 0 && matrix.maxHeight > 0)
+            assertTrue(matrix.pointCount() > 0 && matrix.totalTimeOfFlight() > 0 && matrix.horizontalRange() > 0 && matrix.peakHeight() > 0)
         }
     }
 
@@ -300,7 +305,7 @@ class TrajectoryDomainValidationTest : ISimulationTestSuite {
     fun test_matrix_works_with_different_velocities() {
         for (v0 in listOf(5.0, 10.0, 20.0, 50.0)) {
             val matrix = fixture.first.kinematics().generator().generate(fixture.first.params(initialVelocity = v0), 120)
-            assertTrue(matrix.size > 0 && matrix.timeOfFlight > 0 && matrix.range > 0)
+            assertTrue(matrix.pointCount() > 0 && matrix.totalTimeOfFlight() > 0 && matrix.horizontalRange() > 0)
         }
     }
 }

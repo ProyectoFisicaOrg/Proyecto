@@ -10,7 +10,4 @@ interface IImpactResult {
     fun hitTarget(): ICollisionTarget
     fun centerDistance(): Double
     fun timeOfImpact(): Double
-
-    val point: ITrajectoryPoint get() = impactPoint()
-    val target: ICollisionTarget get() = hitTarget()
 }

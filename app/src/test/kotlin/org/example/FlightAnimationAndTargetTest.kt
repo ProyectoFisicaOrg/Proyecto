@@ -27,10 +27,10 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
     fun test_transformer_accurately_converts_origin_between_physics_and_canvas() {
         val cfg = fixture.first.geometry().config()
         val transformer = fixture.first.geometry().transformer()
-        assertEquals(cfg.cannonBaseX, transformer.toCanvasX(0.0))
-        assertEquals(cfg.cannonBaseY, transformer.toCanvasY(0.0))
-        assertEquals(0.0, transformer.toPhysicsX(cfg.cannonBaseX))
-        assertEquals(0.0, transformer.toPhysicsY(cfg.cannonBaseY))
+        assertEquals(cfg.basePivotX(), transformer.toCanvasX(0.0))
+        assertEquals(cfg.basePivotY(), transformer.toCanvasY(0.0))
+        assertEquals(0.0, transformer.toPhysicsX(cfg.basePivotX()))
+        assertEquals(0.0, transformer.toPhysicsY(cfg.basePivotY()))
     }
 
     @Test
@@ -60,10 +60,11 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
         val engine = fixture.first.createEngine(state, hooks, ticker)
         engine.start()
         val cfg = fixture.first.geometry().config()
-        assertTrue(state.isAnimating && ticker.isRunning && updateCalled)
+        assertTrue(state.checkAnimating() && ticker.checkRunning() && updateCalled)
         assertEquals(1, trailPoints.size)
-        assertEquals(cfg.cannonBaseX, state.projectileX, 1e-6)
-        assertEquals(cfg.cannonBaseY, state.projectileY, 1e-6)
+        val proj = state.currentProjectileCoords()
+        assertEquals(cfg.basePivotX(), proj.first, 1e-6)
+        assertEquals(cfg.basePivotY(), proj.second, 1e-6)
     }
 
     @Test
@@ -74,11 +75,12 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onTick = { x, y -> trailPoints.add(Pair(x, y)) })
         val engine = fixture.first.createEngine(state, hooks, ticker)
         engine.start()
-        val halfNano = ((engine.currentMatrix!!.timeOfFlight / 2.0) * 1_000_000_000).toLong()
+        val halfNano = ((engine.activeTrajectoryMatrix()!!.totalTimeOfFlight() / 2.0) * 1_000_000_000).toLong()
         ticker.advance(1_000_000_000L)
         ticker.advance(1_000_000_000L + halfNano)
         val cfg = fixture.first.geometry().config()
-        assertTrue(state.projectileX > cfg.cannonBaseX && state.projectileY < cfg.cannonBaseY)
+        val proj = state.currentProjectileCoords()
+        assertTrue(proj.first > cfg.basePivotX() && proj.second < cfg.basePivotY())
         assertTrue(trailPoints.size >= 3)
     }
 
@@ -113,13 +115,13 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = { finished = true }, collisionListener = CollisionCallbackAdapter { reported = it })
         val engine = fixture.first.createEngine(state, hooks, ticker)
         val matrix = fixture.third.matrix(vel = 40.0, samples = 240)
-        state.targetX = fixture.first.geometry().transformer().toCanvasX(matrix.range)
-        state.targetRadius = 20.0
+        state.changeTargetX(fixture.first.geometry().transformer().toCanvasX(matrix.horizontalRange()))
+        state.changeTargetRadius(20.0)
         engine.start(matrix)
         ticker.advance(100_000_000L)
-        ticker.advance(110_000_000L + (matrix.timeOfFlight * 1_000_000_000).toLong())
-        assertTrue(!state.isAnimating && finished && reported?.status == CollisionStatus.HIT)
-        assertEquals(fixture.first.geometry().config().cannonBaseY, state.projectileY, 1e-4)
+        ticker.advance(110_000_000L + (matrix.totalTimeOfFlight() * 1_000_000_000).toLong())
+        assertTrue(!state.checkAnimating() && finished && reported?.collisionStatus() == CollisionStatus.HIT)
+        assertEquals(fixture.first.geometry().config().basePivotY(), state.currentProjectileCoords().second, 1e-4)
     }
 
     @Test
@@ -130,14 +132,14 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, collisionListener = CollisionCallbackAdapter { reported = it })
         val engine = fixture.first.createEngine(state, hooks, ticker)
         val matrix = fixture.third.matrix(vel = 30.0, samples = 240)
-        state.targetX = fixture.first.geometry().transformer().toCanvasX(matrix.range + 100.0)
+        state.changeTargetX(fixture.first.geometry().transformer().toCanvasX(matrix.horizontalRange() + 100.0))
         engine.start(matrix)
         ticker.advance(100_000_000L)
-        ticker.advance(110_000_000L + (matrix.timeOfFlight * 1_000_000_000).toLong())
+        ticker.advance(110_000_000L + (matrix.totalTimeOfFlight() * 1_000_000_000).toLong())
         val captured = reported
         assertNotNull(captured)
-        assertEquals(CollisionStatus.MISS, captured.status)
-        assertTrue(captured.message.contains("fuera del objetivo"))
+        assertEquals(CollisionStatus.MISS, captured.collisionStatus())
+        assertTrue(captured.statusMessage().contains("fuera del objetivo"))
     }
 
     @Test
@@ -148,11 +150,11 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onTick = { x, y -> trailPoints.add(Pair(x, y)) })
         val engine = fixture.first.createEngine(state, hooks, ticker)
         engine.start()
-        val flightNano = (engine.currentMatrix!!.timeOfFlight * 1_000_000_000).toLong()
+        val flightNano = (engine.activeTrajectoryMatrix()!!.totalTimeOfFlight() * 1_000_000_000).toLong()
         ticker.advance(100_000_000L)
         ticker.advance(100_000_000L + flightNano)
         assertTrue(trailPoints.size >= 2)
-        assertEquals(fixture.first.geometry().config().cannonBaseY, trailPoints.last().second, 1e-4)
+        assertEquals(fixture.first.geometry().config().basePivotY(), trailPoints.last().second, 1e-4)
     }
 }
 
@@ -174,16 +176,16 @@ class FlightPlaybackAndBoundsTest : ISimulationTestSuite {
         val tickerNormal = ManualFrameTicker()
         val tickerFast = ManualFrameTicker()
         val engineNormal = fixture.first.createEngine(stateNormal, FlightEventHooks({}, {}), tickerNormal)
-        engineNormal.timeScale = 1.0
+        engineNormal.updateTimeScale(1.0)
         engineNormal.start()
         val engineFast = fixture.first.createEngine(stateFast, FlightEventHooks({}, {}), tickerFast)
-        engineFast.timeScale = 2.0
+        engineFast.updateTimeScale(2.0)
         engineFast.start()
         tickerNormal.advance(1_000_000_000L)
         tickerNormal.advance(2_000_000_000L)
         tickerFast.advance(1_000_000_000L)
         tickerFast.advance(2_000_000_000L)
-        assertTrue(stateFast.projectileX > stateNormal.projectileX)
+        assertTrue(stateFast.currentProjectileCoords().first > stateNormal.currentProjectileCoords().first)
     }
 
     @Test
@@ -193,31 +195,32 @@ class FlightPlaybackAndBoundsTest : ISimulationTestSuite {
         var outOfBoundsTriggered = false
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onOutOfBounds = { outOfBoundsTriggered = true })
         val engine = fixture.first.createEngine(state, hooks, ticker)
-        engine.timeScale = 1.0
+        engine.updateTimeScale(1.0)
         engine.start()
         ticker.advance(1_000_000_000L)
         ticker.advance(3_000_000_000L)
         ticker.advance(6_000_000_000L)
         val cfg = fixture.first.geometry().config()
-        assertTrue(outOfBoundsTriggered && !state.isAnimating)
-        assertEquals(cfg.cannonBaseX, state.projectileX, 1e-4)
-        assertEquals(cfg.cannonBaseY, state.projectileY, 1e-4)
+        val proj = state.currentProjectileCoords()
+        assertTrue(outOfBoundsTriggered && !state.checkAnimating())
+        assertEquals(cfg.basePivotX(), proj.first, 1e-4)
+        assertEquals(cfg.basePivotY(), proj.second, 1e-4)
     }
 
     @Test
     fun test_manual_reset_restores_state_and_triggers_callback() {
         val state = fixture.second.freshState()
-        state.projectileX = 500.0
-        state.projectileY = 200.0
-        state.isAnimating = true
+        state.updateProjectilePosition(500.0, 200.0)
+        state.changeAnimating(true)
         var callbackCalled = false
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onOutOfBounds = { callbackCalled = true })
         val engine = fixture.first.createEngine(state, hooks, ManualFrameTicker())
         engine.reset()
         val cfg = fixture.first.geometry().config()
-        assertFalse(state.isAnimating)
-        assertEquals(cfg.cannonBaseX, state.projectileX)
-        assertEquals(cfg.cannonBaseY, state.projectileY)
+        val proj = state.currentProjectileCoords()
+        assertFalse(state.checkAnimating())
+        assertEquals(cfg.basePivotX(), proj.first)
+        assertEquals(cfg.basePivotY(), proj.second)
         assertTrue(callbackCalled)
     }
 }
@@ -250,7 +253,7 @@ class PathTrailFadeTest : ISimulationTestSuite {
         assertEquals(0.25, pathRenderer.getOpacity(launchNano + 2_500_000_000L), 1e-4)
         assertEquals(0.0, pathRenderer.getOpacity(launchNano + 3_000_000_000L), 1e-4)
         pathRenderer.drawPath(launchNano + 3_100_000_000L)
-        assertEquals(0, pathRenderer.pointCount)
+        assertEquals(0, pathRenderer.currentPointCount())
     }
 
     @Test

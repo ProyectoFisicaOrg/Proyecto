@@ -32,9 +32,9 @@ class JavaFxTargetOverlayPill(
     override fun updateHorizontalPosition(targetCanvasX: Double) {
         val cfgAndW = slot[0].first
         val box = slot[0].second.second
-        val clampedX = (targetCanvasX - cfgAndW.second / 2.0).coerceIn(10.0, cfgAndW.first.canvasWidth - cfgAndW.second - 10.0)
+        val clampedX = (targetCanvasX - cfgAndW.second / 2.0).coerceIn(10.0, cfgAndW.first.width() - cfgAndW.second - 10.0)
         box.layoutX = clampedX
-        box.layoutY = cfgAndW.first.groundY + 26.0
+        box.layoutY = cfgAndW.first.groundLevelY() + 26.0
     }
 
     override fun setLocked(locked: Boolean) {

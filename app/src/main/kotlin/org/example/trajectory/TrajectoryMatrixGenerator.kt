@@ -13,6 +13,8 @@ class SamplingTrajectoryMatrixGenerator(
     private val matrixFactory: (List<ITrajectoryPoint>, Double, Double, Double) -> TrajectoryMatrix = ::TrajectoryMatrix
 ) : TrajectoryMatrixGenerator {
 
+    constructor(calculator: TrajectoryCalculator) : this(calculator, ::TrajectoryMatrix)
+
     companion object {
         const val DEFAULT_SAMPLES_PER_SECOND = 120
     }
@@ -40,7 +42,7 @@ class SamplingTrajectoryMatrixGenerator(
             t += dt
         }
         val impactPoint = calculator.calculateState(params, timeOfFlight)
-        if (points.isEmpty() || points.last().t < timeOfFlight) {
+        if (points.isEmpty() || points.last().timeSeconds() < timeOfFlight) {
             points.add(impactPoint)
         }
         return points

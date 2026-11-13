@@ -14,17 +14,17 @@ class LinearTrajectoryInterpolator(
         val idx = points.indexOf(pointNearGround)
         if (idx <= 0) return pointNearGround
         val prev = points[idx - 1]
-        if (prev.y > 0.0 && pointNearGround.y <= 0.0) {
+        if (prev.posY() > 0.0 && pointNearGround.posY() <= 0.0) {
             return calculateGroundCrossing(prev, pointNearGround)
         }
         return pointNearGround
     }
 
     private fun calculateGroundCrossing(prev: ITrajectoryPoint, curr: ITrajectoryPoint): ITrajectoryPoint {
-        val ratio = prev.y / (prev.y - curr.y)
-        val exactT = prev.t + ratio * (curr.t - prev.t)
-        val exactX = prev.x + ratio * (curr.x - prev.x)
-        val exactVy = prev.vy + ratio * (curr.vy - prev.vy)
-        return pointFactory(exactX, 0.0, prev.vx, exactVy, exactT)
+        val ratio = prev.posY() / (prev.posY() - curr.posY())
+        val exactT = prev.timeSeconds() + ratio * (curr.timeSeconds() - prev.timeSeconds())
+        val exactX = prev.posX() + ratio * (curr.posX() - prev.posX())
+        val exactVy = prev.velY() + ratio * (curr.velY() - prev.velY())
+        return pointFactory(exactX, 0.0, prev.velX(), exactVy, exactT)
     }
 }

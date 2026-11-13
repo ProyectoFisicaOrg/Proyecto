@@ -61,11 +61,12 @@ data class ImpactResult internal constructor(
     }
 
     fun isWithinTarget(): Boolean {
-        return content.third.first <= content.second.radius && abs(content.first.x - content.second.centerX) <= content.second.radius + 1.0
+        val rad = content.second.radiusMeters()
+        return content.third.first <= rad && abs(content.first.posX() - content.second.centerPosition()) <= rad + 1.0
     }
 
     fun deviationX(): Double {
-        return content.first.x - content.second.centerX
+        return content.first.posX() - content.second.centerPosition()
     }
 }
 
@@ -121,8 +122,8 @@ class DefaultCollisionResultFactory : ICollisionResultFactory {
     }
 
     override fun hit(point: ITrajectoryPoint, target: ICollisionTarget, dist: Double): ICollisionResult {
-        val impact = ImpactResult(point, target, dist, point.t)
-        val msg = "Impacto en x=%.2f, t=%.4f s".format(point.x, point.t)
+        val impact = ImpactResult(point, target, dist, point.timeSeconds())
+        val msg = "Impacto en x=%.2f, t=%.4f s".format(point.posX(), point.timeSeconds())
         return CollisionResult(CollisionStatus.HIT, impact, msg)
     }
 
@@ -138,13 +139,13 @@ class DefaultCollisionResultFactory : ICollisionResultFactory {
  */
 class XAxisCollisionDetector(
     interpolator: TrajectoryInterpolator,
-    tolerance: Double = 0.5,
-    resultFactory: ICollisionResultFactory = DefaultCollisionResultFactory()
+    tolerance: Double,
+    resultFactory: ICollisionResultFactory
 ) : CollisionDetector {
     private val cfg: Triple<TrajectoryInterpolator, Double, ICollisionResultFactory> = Triple(interpolator, tolerance, resultFactory)
 
     override fun checkCollision(matrix: ITrajectoryMatrixSummary, target: ICollisionTarget): ICollisionResult {
-        val points = matrix.points
+        val points = matrix.trajectoryPoints()
         if (points.isEmpty()) {
             return cfg.third.unknown("No hay puntos en la matriz de trayectoria")
         }
@@ -157,18 +158,19 @@ class XAxisCollisionDetector(
 
     private fun findNearGroundPoints(points: List<ITrajectoryPoint>): List<ITrajectoryPoint> {
         val tol = cfg.second
-        return points.filter { it.y <= tol && it.y >= -tol * 2.0 }
+        return points.filter { it.posY() <= tol && it.posY() >= -tol * 2.0 }
     }
 
     private fun evaluateHitOrMiss(allPoints: List<ITrajectoryPoint>, nearGround: List<ITrajectoryPoint>, target: ICollisionTarget): ICollisionResult {
-        val hitCandidate = nearGround.firstOrNull { target.contains(it.x) }
+        val center = target.centerPosition()
+        val hitCandidate = nearGround.firstOrNull { target.contains(it.posX()) }
         if (hitCandidate != null) {
             val exactPoint = cfg.first.interpolateToGround(allPoints, hitCandidate)
-            val dist = abs(exactPoint.x - target.centerX)
+            val dist = abs(exactPoint.posX() - center)
             return cfg.third.hit(exactPoint, target, dist)
         }
-        val closest = nearGround.minByOrNull { abs(it.x - target.centerX) }!!
-        return cfg.third.miss(closest.x, target)
+        val closest = nearGround.minByOrNull { abs(it.posX() - center) }!!
+        return cfg.third.miss(closest.posX(), target)
     }
 
     override fun isInsideTarget(impactX: Double, target: ICollisionTarget): Boolean {

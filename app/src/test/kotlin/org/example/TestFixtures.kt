@@ -1,11 +1,12 @@
 package org.example
 
 import javafx.scene.canvas.Canvas
-import org.example.animation.DefaultAnimationEngineFactory
+import org.example.animation.AnimationEngine
 import org.example.animation.DefaultFlightPortFactory
 import org.example.animation.FrameTicker
 import org.example.animation.IAnimationEngine
 import org.example.animation.IFlightCompletionNotifier
+import org.example.animation.RuntimeContextWiring
 import org.example.model.ISimulationState
 import org.example.model.ITrajectoryMatrixSummary
 import org.example.model.SimulationState
@@ -53,9 +54,9 @@ class TestStateBuilderA : ISimulationTestSuite {
 
     fun configuredState(vel: Double, ang: Double = 45.0): ISimulationState {
         val state: ISimulationState = SimulationState()
-        state.angle = ang
-        state.velocity = vel
-        state.gravity = 9.8
+        state.updateAngle(ang)
+        state.updateVelocity(vel)
+        state.updateGravity(9.8)
         return state
     }
 }
@@ -90,10 +91,10 @@ class TestFlightEngineHarness : ISimulationTestSuite {
     }
 
     fun createEngine(state: ISimulationState, hooks: IFlightCompletionNotifier, ticker: FrameTicker): IAnimationEngine {
-        val ports = DefaultFlightPortFactory()
-        val kin = ports.createKinematics(state, geom.config(), geom.transformer())
-        val eval = ports.createEvaluator(geom.transformer())
-        return DefaultAnimationEngineFactory().createWithTicker(kin, eval, hooks, ticker)
+        val kin = DefaultFlightPortFactory.createKinematics(state, geom.config(), geom.transformer())
+        val eval = DefaultFlightPortFactory.createEvaluator(geom.transformer())
+        val ctx = RuntimeContextWiring.createWithTicker(kin, eval, hooks, ticker)
+        return AnimationEngine(ctx)
     }
 }
 
@@ -200,7 +201,7 @@ class TestTelemetryBuilder : ISimulationTestSuite {
     }
 
     fun telemetry(): ITelemetryFactory {
-        return DefaultTelemetryProvider()
+        return DefaultTelemetryProvider
     }
 }
 
@@ -221,13 +222,13 @@ class TestTargetViewBuilder : ISimulationTestSuite {
 
     fun createRenderer(state: ISimulationState): ITargetRenderer {
         val cfg = geom.config()
-        val dummyCanvas = Canvas(cfg.canvasWidth, cfg.canvasHeight)
+        val dummyCanvas = Canvas(cfg.width(), cfg.height())
         return TargetRenderer(dummyCanvas.graphicsContext2D, cfg, dummyCanvas, state, {}, {})
     }
 
     fun createObservedRenderer(state: ISimulationState, onMoved: (Double) -> Unit, onRepaint: () -> Unit): ITargetRenderer {
         val cfg = geom.config()
-        val dummyCanvas = Canvas(cfg.canvasWidth, cfg.canvasHeight)
+        val dummyCanvas = Canvas(cfg.width(), cfg.height())
         return TargetRenderer(dummyCanvas.graphicsContext2D, cfg, dummyCanvas, state, onMoved, onRepaint)
     }
 }

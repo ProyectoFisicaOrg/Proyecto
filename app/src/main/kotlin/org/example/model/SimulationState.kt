@@ -11,7 +11,10 @@ private data class TargetCollisionSnapshot(
     private val posX: Double,
     private val rad: Double,
     private val collision: ICollisionResult?
-) {
+) : IStateSnapshot {
+    override fun isSnapshotReady(): Boolean {
+        return rad > 0.0 && posX >= 0.0
+    }
     fun x(): Double {
         return posX
     }
@@ -44,7 +47,10 @@ private data class FlightMotionSnapshot(
     private val active: Boolean,
     private val startNano: Long,
     private val coords: Pair<Double, Double>
-) {
+) : IStateSnapshot {
+    override fun isSnapshotReady(): Boolean {
+        return startNano >= 0L && (active || coords.first >= -1e9)
+    }
     fun isAnimating(): Boolean {
         return active
     }
@@ -73,13 +79,20 @@ private data class FlightMotionSnapshot(
 /**
  * Estado base encapsulado y cohesivo de los parámetros configurables del lanzamiento (SRP + Encapsulación).
  */
-open class LaunchParametersState(
-    initialParams: PhysicsParams = PhysicsParams(45.0, 50.0, 9.8, 10.0)
-) : ILaunchKinematics, IEnvironmentParameters {
+class LaunchParametersState(
+    initialParams: PhysicsParams
+) : ILaunchParametersState {
+
+    constructor() : this(PhysicsParams(45.0, 50.0, 9.8, 10.0))
+
     private var params: PhysicsParams = initialParams
 
+    override fun hasValidLaunchConfig(): Boolean {
+        return params.launchVelocity() >= 0.0
+    }
+
     override fun currentAngle(): Double {
-        return params.angleDeg
+        return params.angleDegrees()
     }
 
     override fun updateAngle(value: Double) {
@@ -88,7 +101,7 @@ open class LaunchParametersState(
     }
 
     override fun currentVelocity(): Double {
-        return params.initialVelocity
+        return params.launchVelocity()
     }
 
     override fun updateVelocity(value: Double) {
@@ -97,7 +110,7 @@ open class LaunchParametersState(
     }
 
     override fun currentGravity(): Double {
-        return params.gravity
+        return params.gravityAcceleration()
     }
 
     override fun updateGravity(value: Double) {
@@ -106,7 +119,7 @@ open class LaunchParametersState(
     }
 
     override fun currentMass(): Double {
-        return params.mass
+        return params.projectileMass()
     }
 
     override fun updateMass(value: Double) {
@@ -155,8 +168,12 @@ class TargetAndCollisionState : ITargetAndCollisionState {
  * Contenedor encapsulado del estado dinámico de la simulación (SRP + DIP + Encapsulación).
  */
 class SimulationState(
-    private val targetState: ITargetAndCollisionState = TargetAndCollisionState()
-) : LaunchParametersState(), ISimulationState, ITargetAndCollisionState by targetState {
+    launchProvider: () -> ILaunchParametersState = ::LaunchParametersState,
+    targetProvider: () -> ITargetAndCollisionState = ::TargetAndCollisionState
+) : ISimulationState, ILaunchParametersState by launchProvider(), ITargetAndCollisionState by targetProvider() {
+
+    constructor() : this(::LaunchParametersState, ::TargetAndCollisionState)
+
     private var flight: FlightMotionSnapshot = FlightMotionSnapshot(false, 0L, Pair(90.0, 470.0))
 
     override fun checkAnimating(): Boolean {
@@ -196,6 +213,6 @@ class SimulationState(
     }
 
     override fun clearCollisionResult() {
-        targetState.changeCollisionResult(null)
+        changeCollisionResult(null)
     }
 }

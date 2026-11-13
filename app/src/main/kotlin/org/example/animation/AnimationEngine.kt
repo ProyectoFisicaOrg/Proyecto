@@ -1,10 +1,8 @@
 package org.example.animation
 
-import org.example.DefaultCollisionBuilder
-import org.example.DefaultKinematicsBuilder
+import org.example.SimulationFactoryWiring
 import org.example.collision.CollisionDetector
 import org.example.collision.ICollisionResult
-import org.example.collision.ICollisionTarget
 import org.example.model.ISimulationState
 import org.example.model.ITrajectoryMatrixSummary
 import org.example.model.Target
@@ -17,16 +15,14 @@ import org.example.trajectory.TrajectoryMatrixGenerator
  */
 class FlightCollisionEvaluator(
     transformer: CoordinateTransformer,
-    collisionDetector: CollisionDetector,
-    targetFactory: (Double, Double) -> ICollisionTarget = ::Target
+    collisionDetector: CollisionDetector
 ) : IFlightCollisionEvaluator {
-    private val deps: Triple<CoordinateTransformer, CollisionDetector, (Double, Double) -> ICollisionTarget> =
-        Triple(transformer, collisionDetector, targetFactory)
+    private val deps: Pair<CoordinateTransformer, CollisionDetector> = Pair(transformer, collisionDetector)
 
     override fun evaluateGroundCollision(matrix: ITrajectoryMatrixSummary, state: ISimulationState): ICollisionResult {
-        val targetPhysicsX = deps.first.toPhysicsX(state.targetX)
-        val targetPhysicsRadius = deps.first.toPhysicsDistance(state.targetRadius)
-        return deps.second.checkCollision(matrix, deps.third(targetPhysicsX, targetPhysicsRadius))
+        val targetPhysicsX = deps.first.toPhysicsX(state.currentTargetX())
+        val targetPhysicsRadius = deps.first.toPhysicsDistance(state.currentTargetRadius())
+        return deps.second.checkCollision(matrix, Target(targetPhysicsX, targetPhysicsRadius))
     }
 }
 
@@ -80,7 +76,7 @@ class FlightKinematicsPort(
     state: ISimulationState,
     cfg: ISceneConfig,
     transformer: CoordinateTransformer,
-    generator: TrajectoryMatrixGenerator = DefaultKinematicsBuilder().buildGenerator()
+    generator: TrajectoryMatrixGenerator = SimulationFactoryWiring.buildGenerator()
 ) : IFlightKinematicsPort {
     private val ctx: Pair<Pair<ISimulationState, ISceneConfig>, Pair<CoordinateTransformer, TrajectoryMatrixGenerator>> =
         Pair(Pair(state, cfg), Pair(transformer, generator))
@@ -90,7 +86,7 @@ class FlightKinematicsPort(
     }
 
     override fun baseOrigin(): Pair<Double, Double> {
-        return Pair(ctx.first.second.cannonBaseX, ctx.first.second.cannonBaseY)
+        return Pair(ctx.first.second.basePivotX(), ctx.first.second.basePivotY())
     }
 
     override fun isWithinCanvasBounds(canvasX: Double, canvasY: Double): Boolean {
@@ -113,53 +109,71 @@ class DefaultAnimationRuntimeContext(
     kinematics: IFlightKinematicsPort,
     evaluator: IFlightCollisionEvaluator,
     notifier: IFlightCompletionNotifier,
-    ticker: FrameTicker = JavaFxFrameTicker()
+    ticker: FrameTicker
 ) : IAnimationRuntimeContext, IFlightKinematicsPort by kinematics {
-    private val deps: Pair<Pair<IFlightKinematicsPort, IFlightCollisionEvaluator>, Pair<IFlightCompletionNotifier, FrameTicker>> =
-        Pair(Pair(kinematics, evaluator), Pair(notifier, ticker))
+    private val deps: Triple<IFlightCollisionEvaluator, IFlightCompletionNotifier, FrameTicker> =
+        Triple(evaluator, notifier, ticker)
 
-    override fun evaluateGroundImpact(matrix: ITrajectoryMatrixSummary): ICollisionResult {
-        return deps.first.second.evaluateGroundCollision(matrix, deps.first.first.stateModel())
+    constructor(
+        kinematics: IFlightKinematicsPort,
+        evaluator: IFlightCollisionEvaluator,
+        notifier: IFlightCompletionNotifier,
+        tickerProvider: () -> FrameTicker = ::JavaFxFrameTicker
+    ) : this(kinematics, evaluator, notifier, tickerProvider())
+
+    override fun evaluator(): IFlightCollisionEvaluator {
+        return deps.first
     }
 
     override fun hooks(): IFlightCompletionNotifier {
-        return deps.second.first
+        return deps.second
     }
 
     override fun startTicker(step: (Long) -> Unit) {
-        deps.second.second.start(step)
+        deps.third.start(step)
     }
 
     override fun stopTicker() {
-        deps.second.second.stop()
+        deps.third.stop()
     }
 }
 
 /**
- * Fábrica cohesiva de puertos cinemáticos y evaluadores de impacto (SRP + DIP).
+ * Fábricas cohesivas de puertos cinemáticos y evaluadores de impacto (SRP + DIP).
  */
-class DefaultFlightPortFactory : IFlightPortFactory {
-
+object FlightKinematicsWiring : IFlightKinematicsFactory {
     override fun createKinematics(state: ISimulationState, cfg: ISceneConfig, transformer: CoordinateTransformer): IFlightKinematicsPort {
         return FlightKinematicsPort(state, cfg, transformer)
     }
+}
 
+object FlightEvaluatorWiring : IFlightEvaluatorFactory {
     override fun createEvaluator(transformer: CoordinateTransformer): IFlightCollisionEvaluator {
-        return FlightCollisionEvaluator(transformer, DefaultCollisionBuilder().buildCollisionDetector())
+        return FlightCollisionEvaluator(transformer, SimulationFactoryWiring.buildCollisionDetector())
     }
 }
 
-/**
- * Fábrica cohesiva de instancias de [IAnimationEngine] inyectadas por interfaces (SRP + DIP).
- */
-class DefaultAnimationEngineFactory : IAnimationEngineFactory {
+object DefaultFlightPortFactory : IFlightPortFactory,
+    IFlightKinematicsFactory by FlightKinematicsWiring,
+    IFlightEvaluatorFactory by FlightEvaluatorWiring {
+    override fun portFactoryId(): String {
+        return "DefaultFlightPortFactory"
+    }
+}
 
-    override fun create(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, timeScale: Double): IAnimationEngine {
-        return AnimationEngine(DefaultAnimationRuntimeContext(kinematics, evaluator, hooks), timeScale)
+object RuntimeContextWiring : IRuntimeContextWiring {
+    override fun createDefault(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier): IAnimationRuntimeContext {
+        return DefaultAnimationRuntimeContext(kinematics, evaluator, hooks)
     }
 
-    override fun createWithTicker(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, ticker: FrameTicker): IAnimationEngine {
-        return AnimationEngine(DefaultAnimationRuntimeContext(kinematics, evaluator, hooks, ticker), 1.75)
+    override fun createWithTicker(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, ticker: FrameTicker): IAnimationRuntimeContext {
+        return DefaultAnimationRuntimeContext(kinematics, evaluator, hooks, ticker)
+    }
+}
+
+object DefaultAnimationEngineFactory : IAnimationEngineFactory {
+    override fun create(kinematics: IFlightKinematicsPort, evaluator: IFlightCollisionEvaluator, hooks: IFlightCompletionNotifier, timeScale: Double): IAnimationEngine {
+        return AnimationEngine(RuntimeContextWiring.createDefault(kinematics, evaluator, hooks), timeScale)
     }
 }
 
@@ -198,9 +212,11 @@ class AnimationEngine(
         slot[0] = Pair(rt, Triple(cfg.first, cfg.second, flightMatrix))
         val st = rt.stateModel()
         st.startFlight(0L)
-        val launchCanvas = rt.toCanvasPoint(flightMatrix.launchPoint.x, flightMatrix.launchPoint.y)
+        val firstPt = flightMatrix.firstPoint()
+        val launchCanvas = rt.toCanvasPoint(firstPt.posX(), firstPt.posY())
         st.updateProjectilePosition(launchCanvas.first, launchCanvas.second)
-        rt.hooks().notifyTick(st.projectileX, st.projectileY)
+        val curCoords = st.currentProjectileCoords()
+        rt.hooks().notifyTick(curCoords.first, curCoords.second)
         rt.startTicker { now -> tick(now) }
         rt.hooks().notifyUpdate()
     }
@@ -208,7 +224,7 @@ class AnimationEngine(
     override fun stop() {
         val rt = slot[0].first
         val st = rt.stateModel()
-        if (!st.isAnimating) return
+        if (!st.checkAnimating()) return
         st.stopFlight()
         rt.stopTicker()
         rt.hooks().notifyFinished()
@@ -230,12 +246,12 @@ class AnimationEngine(
     override fun tick(now: Long) {
         val rt = slot[0].first
         val st = rt.stateModel()
-        if (!st.isAnimating) return
+        if (!st.checkAnimating()) return
         val cfg = slot[0].second
         val matrix = cfg.third ?: return
-        if (st.animationStartTime == 0L) st.animationStartTime = now
-        val elapsed = ((now - st.animationStartTime) / 1_000_000_000.0) * cfg.first
-        if (elapsed >= matrix.timeOfFlight) handleGroundImpact(matrix) else processInFlight(matrix, elapsed)
+        if (st.flightStartTimeNano() == 0L) st.changeFlightStartTimeNano(now)
+        val elapsed = ((now - st.flightStartTimeNano()) / 1_000_000_000.0) * cfg.first
+        if (elapsed >= matrix.totalTimeOfFlight()) handleGroundImpact(matrix) else processInFlight(matrix, elapsed)
     }
 
     private fun processInFlight(matrix: ITrajectoryMatrixSummary, elapsed: Double) {
@@ -255,11 +271,12 @@ class AnimationEngine(
         val rt = slot[0].first
         val st = rt.stateModel()
         val hooks = rt.hooks()
-        val impactPt = rt.toCanvasPoint(matrix.impactPoint.x, matrix.impactPoint.y)
+        val lastPt = matrix.finalPoint()
+        val impactPt = rt.toCanvasPoint(lastPt.posX(), lastPt.posY())
         st.updateProjectilePosition(impactPt.first, impactPt.second)
         hooks.notifyTick(impactPt.first, impactPt.second)
-        val result = rt.evaluateGroundImpact(matrix)
-        st.lastCollisionResult = result
+        val result = rt.evaluator().evaluateGroundCollision(matrix, st)
+        st.changeCollisionResult(result)
         hooks.notifyCollision(result)
         hooks.notifyFlightCompleted(matrix)
         stop()

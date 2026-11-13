@@ -18,7 +18,4 @@ interface ITooltipBounds {
     fun right(): Double
     fun bottom(): Double
     fun contains(px: Double, py: Double): Boolean
-
-    val x: Double get() = leftX()
-    val y: Double get() = topY()
 }

@@ -46,18 +46,18 @@ class TrajectoryMatrix(
     }
 
     override fun pointsAbove(minHeight: Double): List<ITrajectoryPoint> {
-        return data.first.filter { it.y >= minHeight }
+        return data.first.filter { it.posY() >= minHeight }
     }
 
     override fun interpolateAt(elapsed: Double): Pair<Double, Double> {
         val pts = data.first
-        if (pts.size <= 1) return Pair(pts[0].x, pts[0].y)
+        if (pts.size <= 1) return Pair(pts[0].posX(), pts[0].posY())
         val idx = findSegmentIndex(elapsed)
         val p1 = pts[idx]
         val p2 = pts[idx + 1]
-        val dt = p2.t - p1.t
-        val ratio = if (dt > 0.0) ((elapsed - p1.t) / dt).coerceIn(0.0, 1.0) else 0.0
-        return Pair(p1.x + ratio * (p2.x - p1.x), p1.y + ratio * (p2.y - p1.y))
+        val dt = p2.timeSeconds() - p1.timeSeconds()
+        val ratio = if (dt > 0.0) ((elapsed - p1.timeSeconds()) / dt).coerceIn(0.0, 1.0) else 0.0
+        return Pair(p1.posX() + ratio * (p2.posX() - p1.posX()), p1.posY() + ratio * (p2.posY() - p1.posY()))
     }
 
     private fun findSegmentIndex(elapsed: Double): Int {
@@ -66,32 +66,34 @@ class TrajectoryMatrix(
         var high = pts.size - 1
         while (low <= high) {
             val mid = (low + high) ushr 1
-            if (pts[mid].t <= elapsed) low = mid + 1 else high = mid - 1
+            if (pts[mid].timeSeconds() <= elapsed) low = mid + 1 else high = mid - 1
         }
         return (low - 1).coerceIn(0, pts.size - 2)
     }
 
-    fun getInstantaneousState(x: Double, y: Double, api: InstantaneousStateApi = DefaultTelemetryProvider().buildApi()): IInstantaneousState {
+    fun getInstantaneousState(x: Double, y: Double, api: InstantaneousStateApi = DefaultTelemetryProvider.buildApi()): IInstantaneousState {
         return if (data.first.isNotEmpty()) api.getInstantaneousState(this, x, y) else api.getInstantaneousState(this, x, y)
     }
 
-    fun getInstantaneousState(position: IPosition, api: InstantaneousStateApi = DefaultTelemetryProvider().buildApi()): IInstantaneousState {
-        return getInstantaneousState(position.x, position.y, api)
+    fun getInstantaneousState(position: IPosition, api: InstantaneousStateApi = DefaultTelemetryProvider.buildApi()): IInstantaneousState {
+        return getInstantaneousState(position.horizontal(), position.vertical(), api)
     }
 
-    fun getInstantaneousStateByX(x: Double, api: InstantaneousStateApi = DefaultTelemetryProvider().buildApi()): IInstantaneousState {
+    fun getInstantaneousStateByX(x: Double, api: InstantaneousStateApi = DefaultTelemetryProvider.buildApi()): IInstantaneousState {
         return if (data.first.isNotEmpty()) api.getInstantaneousStateByX(this, x) else api.getInstantaneousStateByX(this, x)
     }
 
     override fun toString(): String {
+        val firstPt = firstPoint()
+        val lastPt = finalPoint()
         return buildString {
             appendLine("=== Matriz de Trayectoria ===")
             appendLine("Puntos: ${data.first.size}")
             appendLine("Tiempo de vuelo: %.4f s".format(data.second[0]))
             appendLine("Alcance: %.2f m".format(data.second[1]))
             appendLine("Altura máxima: %.2f m".format(data.second[2]))
-            appendLine("Punto de lanzamiento: (%.2f, %.2f)".format(launchPoint.x, launchPoint.y))
-            appendLine("Punto de impacto: (%.2f, %.2f)".format(impactPoint.x, impactPoint.y))
+            appendLine("Punto de lanzamiento: (%.2f, %.2f)".format(firstPt.posX(), firstPt.posY()))
+            appendLine("Punto de impacto: (%.2f, %.2f)".format(lastPt.posX(), lastPt.posY()))
         }
     }
 }

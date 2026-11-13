@@ -44,11 +44,11 @@ data class PhysicsParams internal constructor(
     }
 
     fun initialVelocityX(): Double {
-        return values[1] * cos(angleRad)
+        return values[1] * cos(angleRadians())
     }
 
     fun initialVelocityY(): Double {
-        return values[1] * sin(angleRad)
+        return values[1] * sin(angleRadians())
     }
 
     fun initialKineticEnergy(): Double {
@@ -128,29 +128,32 @@ open class ParabolicTrajectoryCalculator(
 
     override fun calculateState(params: IPhysicsParams, t: Double): TrajectoryPoint {
         require(t >= 0.0) { "El tiempo no puede ser negativo" }
-        val vx = params.initialVelocity * cos(params.angleRad)
-        val v0y = params.initialVelocity * sin(params.angleRad)
-        val vy = v0y - params.gravity * t
+        val rad = params.angleRadians()
+        val vel = params.launchVelocity()
+        val grav = params.gravityAcceleration()
+        val vx = vel * cos(rad)
+        val v0y = vel * sin(rad)
+        val vy = v0y - grav * t
         val x = vx * t
-        val y = v0y * t - 0.5 * params.gravity * t * t
+        val y = v0y * t - 0.5 * grav * t * t
         return pointFactory(x, y, vx, vy, t)
     }
 
     override fun calculateTimeOfFlight(params: IPhysicsParams): Double? {
-        val v0y = params.initialVelocity * sin(params.angleRad)
+        val v0y = params.launchVelocity() * sin(params.angleRadians())
         if (v0y <= 0.0) return null
-        return 2.0 * v0y / params.gravity
+        return 2.0 * v0y / params.gravityAcceleration()
     }
 
     override fun calculateRange(params: IPhysicsParams): Double? {
         val timeOfFlight = calculateTimeOfFlight(params) ?: return null
-        return calculateState(params, timeOfFlight).x
+        return calculateState(params, timeOfFlight).posX()
     }
 
     override fun calculateMaxHeight(params: IPhysicsParams): Double {
-        val v0y = params.initialVelocity * sin(params.angleRad)
+        val v0y = params.launchVelocity() * sin(params.angleRadians())
         if (v0y <= 0.0) return 0.0
-        return (v0y * v0y) / (2.0 * params.gravity)
+        return (v0y * v0y) / (2.0 * params.gravityAcceleration())
     }
 }
 
@@ -255,7 +258,7 @@ data class TrajectoryData internal constructor(
     }
 
     fun describeSummary(): String {
-        return "${content.first.angleDeg}° -> T=${content.second[0]}s, R=${content.second[1]}m, frames=${content.third.size}"
+        return "${content.first.angleDegrees()}° -> T=${content.second[0]}s, R=${content.second[1]}m, frames=${content.third.size}"
     }
 
     fun frameAt(index: Int): TrajectoryFrame {
@@ -289,8 +292,8 @@ class SimulationRunner(
         var t = 0.0
         while (t <= timeOfFlight + dt) {
             val point = calculator.calculateState(params, t)
-            if (point.y <= runnerCfg.second && t > 0.0) {
-                appendGroundCrossingIfNeeded(params, point.y, t - dt, frames)
+            if (point.posY() <= runnerCfg.second && t > 0.0) {
+                appendGroundCrossingIfNeeded(params, point.posY(), t - dt, frames)
                 break
             }
             frames.add(point.toFrame())
@@ -302,9 +305,9 @@ class SimulationRunner(
     private fun appendGroundCrossingIfNeeded(params: IPhysicsParams, pointY: Double, prevT: Double, frames: MutableList<TrajectoryFrame>) {
         if (pointY >= 0.0) return
         val dt = runnerCfg.first
-        val prevPoint = calculator.calculateState(params, prevT)
-        if (prevPoint.y <= 0.0) return
-        val ratio = prevPoint.y / (prevPoint.y - pointY)
+        val prevY = calculator.calculateState(params, prevT).posY()
+        if (prevY <= 0.0) return
+        val ratio = prevY / (prevY - pointY)
         frames.add(calculator.calculateState(params, prevT + ratio * dt).toFrame(0.0))
     }
 }

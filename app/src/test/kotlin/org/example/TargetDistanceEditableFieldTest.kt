@@ -135,36 +135,36 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
     fun test_typing_distance_moves_target_and_updates_top_hud_and_rejects_letters() {
         val geom = fixture.first.geometry()
         val state = fixture.second.freshState()
-        state.targetX = 750.0
+        state.changeTargetX(750.0)
         val overlay = FakeTargetOverlayView()
         val topHud = TargetDistanceHud(geom.config(), geom.transformer())
-        TargetDistanceController(TargetDistanceSpec(), geom.transformer(), overlay, { state.targetX = it }).bind()
+        TargetDistanceController(TargetDistanceSpec(), geom.transformer(), overlay, { state.changeTargetX(it) }).bind()
         overlay.textPort().updateText("abc$#@")
         assertEquals("264.00", overlay.textPort().currentText())
         overlay.typeAndCommit("100")
         assertEquals("100.00", overlay.textPort().currentText())
-        assertEquals(340.0, state.targetX, 1e-4)
-        assertEquals("100.00 m", topHud.formatDistance(state.targetX))
+        assertEquals(340.0, state.currentTargetX(), 1e-4)
+        assertEquals("100.00 m", topHud.formatDistance(state.currentTargetX()))
         assertClampedDistances(overlay, state)
     }
 
     private fun assertClampedDistances(overlay: FakeTargetOverlayView, state: ISimulationState) {
         overlay.typeAndCommit("5")
         assertEquals("18.00", overlay.textPort().currentText())
-        assertEquals(135.0, state.targetX, 1e-4)
+        assertEquals(135.0, state.currentTargetX(), 1e-4)
         overlay.typeAndCommit("500")
         assertEquals("312.00", overlay.textPort().currentText())
-        assertEquals(870.0, state.targetX, 1e-4)
+        assertEquals(870.0, state.currentTargetX(), 1e-4)
     }
 
     @Test
     fun test_dragging_or_randomizing_target_updates_editable_field_in_real_time() {
         val state = fixture.second.freshState()
-        state.targetX = 750.0
+        state.changeTargetX(750.0)
         val overlay = FakeTargetOverlayView()
-        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.targetX = it })
+        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.changeTargetX(it) })
         controller.bind()
-        val renderer = fixture.first.createObservedRenderer(state, { newX -> state.targetX = newX; controller.syncFromCanvasX(newX) }, {})
+        val renderer = fixture.first.createObservedRenderer(state, { newX -> state.changeTargetX(newX); controller.syncFromCanvasX(newX) }, {})
         assertTrue(renderer.randomizePosition(FixedTargetRandomizer(590.0)))
         assertEquals("200.00", overlay.textPort().currentText())
         assertEquals(590.0, overlay.positionedCanvasX(), 1e-4)
@@ -173,21 +173,21 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
     @Test
     fun test_field_locks_on_launch_and_unlocks_only_after_scene_reset() {
         val state = fixture.second.freshState()
-        state.targetX = 590.0
+        state.changeTargetX(590.0)
         val overlay = FakeTargetOverlayView()
         overlay.textPort().updateText("200.00")
-        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.targetX = it })
+        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.changeTargetX(it) })
         controller.bind()
         assertFalse(overlay.isLocked())
         controller.prepareForLaunch()
         assertTrue(overlay.isLocked())
         overlay.typeAndCommit("120")
         assertEquals("200.00", overlay.textPort().currentText())
-        assertEquals(590.0, state.targetX, 1e-4)
+        assertEquals(590.0, state.currentTargetX(), 1e-4)
         controller.unlockForEditing()
         assertFalse(overlay.isLocked())
         overlay.typeAndCommit("120")
         assertEquals("120.00", overlay.textPort().currentText())
-        assertEquals(390.0, state.targetX, 1e-4)
+        assertEquals(390.0, state.currentTargetX(), 1e-4)
     }
 }

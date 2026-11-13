@@ -101,9 +101,9 @@ class TrailStrokePainter(
     private fun drawSolid(context: GraphicsContext, points: List<ITrailPoint>) {
         context.stroke = Color.rgb(66, 153, 225, config.second)
         context.beginPath()
-        context.moveTo(points[0].x, points[0].y)
+        context.moveTo(points[0].coordX(), points[0].coordY())
         for (i in 1 until points.size) {
-            context.lineTo(points[i].x, points[i].y)
+            context.lineTo(points[i].coordX(), points[i].coordY())
         }
         context.stroke()
     }
@@ -124,8 +124,21 @@ class TrailStrokePainter(
     private fun drawSegmentWithAlpha(context: GraphicsContext, p1: ITrailPoint, p2: ITrailPoint, alpha: Double) {
         if (alpha > 0.01 && alpha <= config.second) {
             context.stroke = Color.rgb(66, 153, 225, alpha)
-            context.strokeLine(p1.x, p1.y, p2.x, p2.y)
+            context.strokeLine(p1.coordX(), p1.coordY(), p2.coordX(), p2.coordY())
         }
+    }
+}
+
+/**
+ * Fábrica predeterminada de sub-componentes de estela (DIP).
+ */
+object DefaultTrailComponentsFactory : ITrailComponentsFactory {
+    override fun createPainter(gc: GraphicsContext?, baseAlpha: Double): ITrailStrokePainter {
+        return TrailStrokePainter(gc, baseAlpha)
+    }
+
+    override fun createClock(fadeDelaySeconds: Double, fadeDurationSeconds: Double): ITrailFadeClock {
+        return TrailFadeClock(fadeDelaySeconds, fadeDurationSeconds)
     }
 }
 
@@ -144,7 +157,11 @@ class PathRenderer(
         fadeDelaySeconds: Double = 2.0,
         fadeDurationSeconds: Double = 1.2,
         baseAlpha: Double = 0.55
-    ) : this(TrailStrokePainter(gc, baseAlpha), TrailFadeClock(fadeDelaySeconds, fadeDurationSeconds), baseAlpha)
+    ) : this(
+        DefaultTrailComponentsFactory.createPainter(gc, baseAlpha),
+        DefaultTrailComponentsFactory.createClock(fadeDelaySeconds, fadeDurationSeconds),
+        baseAlpha
+    )
 
     private val ctx: Pair<Triple<ITrailStrokePainter, Double, (Double, Double, Long) -> ITrailPoint>, Pair<ITrailFadeClock, MutableList<ITrailPoint>>> =
         Pair(Triple(painter, baseAlpha, pointFactory), Pair(fadeClock, mutableListOf()))

@@ -12,16 +12,4 @@ interface ITargetAndCollisionState {
     fun changeTargetRadius(value: Double)
     fun currentCollisionResult(): ICollisionResult?
     fun changeCollisionResult(result: ICollisionResult?)
-
-    var targetX: Double
-        get() = currentTargetX()
-        set(value) = changeTargetX(value)
-
-    var targetRadius: Double
-        get() = currentTargetRadius()
-        set(value) = changeTargetRadius(value)
-
-    var lastCollisionResult: ICollisionResult?
-        get() = currentCollisionResult()
-        set(value) = changeCollisionResult(value)
 }

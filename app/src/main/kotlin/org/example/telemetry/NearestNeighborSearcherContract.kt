@@ -9,7 +9,7 @@ import org.example.ITrajectoryPoint
 interface TrajectoryNearestNeighborSearcher {
     fun findNearest(points: List<ITrajectoryPoint>, x: Double, y: Double): ITrajectoryPoint
     fun findNearest(points: List<ITrajectoryPoint>, position: IPosition): ITrajectoryPoint =
-        findNearest(points, position.x, position.y)
+        findNearest(points, position.horizontal(), position.vertical())
     fun findNearestByX(points: List<ITrajectoryPoint>, targetX: Double): ITrajectoryPoint
     fun findNearestIndex(points: List<ITrajectoryPoint>, x: Double, y: Double): Int
     fun findNearestIndexByX(points: List<ITrajectoryPoint>, targetX: Double): Int

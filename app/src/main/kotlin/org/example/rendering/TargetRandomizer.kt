@@ -14,3 +14,14 @@ class UniformTargetRandomizer(
         return minX + random.nextDouble() * (maxX - minX)
     }
 }
+
+/**
+ * Instancia compartida por defecto de [ITargetRandomizer] (DIP).
+ */
+object DefaultTargetRandomizer : ITargetRandomizer {
+    private val delegate: ITargetRandomizer = UniformTargetRandomizer()
+
+    override fun calculateRandomX(minX: Double, maxX: Double): Double {
+        return delegate.calculateRandomX(minX, maxX)
+    }
+}

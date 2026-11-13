@@ -7,13 +7,18 @@ import org.example.rendering.CoordinateTransformer
 /**
  * Especificación encapsulada de límites (18.00 m .. 312.00 m) y valor por defecto del objetivo (SRP + Encapsulación).
  */
-class TargetDistanceSpec(
-    minVal: Double = 18.0,
-    maxVal: Double = 312.0,
-    defaultVal: Double = 264.0,
-    private val defaultValidator: INumericInputValidator = NumericInputValidator()
+@ConsistentCopyVisibility
+data class TargetDistanceSpec internal constructor(
+    private val bounds: List<Double>,
+    private val defaultValidator: INumericInputValidator
 ) : ITargetDistanceSpec {
-    private val bounds: List<Double> = listOf(minVal, maxVal, defaultVal)
+
+    constructor(
+        minVal: Double = 18.0,
+        maxVal: Double = 312.0,
+        defaultVal: Double = 264.0,
+        defaultValidator: INumericInputValidator = DefaultNumericValidator
+    ) : this(listOf(minVal, maxVal, defaultVal), defaultValidator)
 
     override fun minMeters(): Double {
         return bounds[0]
@@ -51,7 +56,7 @@ class TargetDistanceController(
     private val transformer: CoordinateTransformer,
     private val overlayView: ITargetOverlayView,
     private val onTargetCanvasXCommitted: (Double) -> Unit,
-    private val validator: INumericInputValidator = NumericInputValidator()
+    private val validator: INumericInputValidator = DefaultNumericValidator
 ) : ITargetDistanceController {
     private var syncing: Boolean = false
 

@@ -71,13 +71,14 @@ class CannonDecalPainter(
 class CannonBarrelPainter(
     private val gc: GraphicsContext,
     private val cfg: ISceneConfig,
-    private val decals: ICannonDecalPainter = CannonDecalPainter(gc)
+    decalFactory: (GraphicsContext) -> ICannonDecalPainter = ::CannonDecalPainter
 ) : ICannonBarrelPainter {
+    private val decals: ICannonDecalPainter = decalFactory(gc)
 
     override fun drawRotatedBarrel(angle: Double) {
         gc.save()
         try {
-            gc.translate(cfg.cannonBaseX, cfg.cannonBaseY)
+            gc.translate(cfg.basePivotX(), cfg.basePivotY())
             gc.rotate(-angle)
             drawTubeAndRings()
             drawMuzzle()
@@ -90,46 +91,51 @@ class CannonBarrelPainter(
     }
 
     private fun drawTubeAndRings() {
-        val halfW = cfg.cannonWidth / 2.0
+        val cw = cfg.barrelWidth()
+        val cl = cfg.barrelLength()
+        val halfW = cw / 2.0
         gc.fill = Color.rgb(40, 40, 40, 0.6)
-        gc.fillRoundRect(3.0, -halfW + 3.0, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
+        gc.fillRoundRect(3.0, -halfW + 3.0, cl, cw, 6.0, 6.0)
         gc.fill = LinearGradient(
             0.0, -halfW, 0.0, halfW, true, CycleMethod.NO_CYCLE,
             Stop(0.0, Color.rgb(180, 185, 190)), Stop(0.5, Color.rgb(120, 125, 130)), Stop(1.0, Color.rgb(60, 65, 70))
         )
-        gc.fillRoundRect(0.0, -halfW, cfg.cannonLength, cfg.cannonWidth, 6.0, 6.0)
+        gc.fillRoundRect(0.0, -halfW, cl, cw, 6.0, 6.0)
         gc.fill = Color.rgb(220, 225, 230, 0.4)
-        gc.fillRoundRect(0.0, -halfW, cfg.cannonLength, cfg.cannonWidth * 0.3, 6.0, 6.0)
+        gc.fillRoundRect(0.0, -halfW, cl, cw * 0.3, 6.0, 6.0)
         drawRingStrokes(Color.rgb(80, 85, 90), 3.0)
         drawRingStrokes(Color.rgb(160, 165, 170), 1.5)
     }
 
     private fun drawRingStrokes(color: Color, width: Double) {
+        val cw = cfg.barrelWidth()
+        val cl = cfg.barrelLength()
         gc.stroke = color
         gc.lineWidth = width
         for (i in 1..3) {
-            val x = i * cfg.cannonLength / 4.0
-            gc.strokeLine(x, -cfg.cannonWidth / 2.0 - 2.0, x, cfg.cannonWidth / 2.0 + 2.0)
+            val x = i * cl / 4.0
+            gc.strokeLine(x, -cw / 2.0 - 2.0, x, cw / 2.0 + 2.0)
         }
     }
 
     private fun drawMuzzle() {
-        val mw = cfg.cannonWidth * 1.8
+        val cl = cfg.barrelLength()
+        val mw = cfg.barrelWidth() * 1.8
         val ml = 12.0
         gc.fill = Color.rgb(30, 30, 30, 0.5)
-        gc.fillOval(cfg.cannonLength + 3.0, -mw / 2.0 + 3.0, ml, mw)
+        gc.fillOval(cl + 3.0, -mw / 2.0 + 3.0, ml, mw)
         gc.fill = LinearGradient(
-            cfg.cannonLength, -mw / 2.0, cfg.cannonLength + ml, mw / 2.0, true, CycleMethod.NO_CYCLE,
+            cl, -mw / 2.0, cl + ml, mw / 2.0, true, CycleMethod.NO_CYCLE,
             Stop(0.0, Color.rgb(140, 145, 150)), Stop(0.5, Color.rgb(90, 95, 100)), Stop(1.0, Color.rgb(40, 45, 50))
         )
-        gc.fillOval(cfg.cannonLength, -mw / 2.0, ml, mw)
+        gc.fillOval(cl, -mw / 2.0, ml, mw)
         gc.stroke = Color.rgb(200, 205, 210)
         gc.lineWidth = 2.5
-        gc.strokeOval(cfg.cannonLength, -mw / 2.0, ml, mw)
+        gc.strokeOval(cl, -mw / 2.0, ml, mw)
     }
 
     private fun drawBreech() {
-        val cw = cfg.cannonWidth * 2.2
+        val cw = cfg.barrelWidth() * 2.2
         val cl = 22.0
         gc.fill = Color.rgb(70, 50, 35)
         gc.fillRoundRect(-cl, -cw / 2.0, cl, cw, 8.0, 8.0)
@@ -167,8 +173,8 @@ class CannonMountPainter(
     override fun drawCannonBase() {
         gc.save()
         try {
-            val bx = cfg.cannonBaseX
-            val by = cfg.cannonBaseY
+            val bx = cfg.basePivotX()
+            val by = cfg.basePivotY()
             drawBasePlatform(bx, by, 32.0)
             drawBasePivot(bx, by, 12.0)
             drawDegreeMarks(bx, by, 32.0)

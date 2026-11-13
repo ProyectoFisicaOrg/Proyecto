@@ -5,11 +5,12 @@ import javafx.scene.layout.Pane
 import javafx.scene.layout.VBox
 import javafx.stage.Stage
 import org.example.animation.IAnimationEngine
-import org.example.model.ISimulationState
-import org.example.rendering.CoordinateTransformer
+import org.example.animation.IFlightCompletionNotifier
 import org.example.rendering.ISceneConfig
+import org.example.rendering.ISceneRenderer
 import org.example.rendering.ITargetRenderer
 import org.example.ui.IControlPanel
+import org.example.ui.ITargetDistanceController
 import org.example.ui.ITargetInteractionCoordinator
 
 /**
@@ -20,21 +21,45 @@ interface ISimulationStageBuilder {
 }
 
 interface IWorkspaceCoreBuilder {
-    fun buildCore(canvas: Canvas, cfg: ISceneConfig): Triple<ISimulationState, CoordinateTransformer, org.example.rendering.IPathRenderer>
+    fun buildCore(canvas: Canvas, cfg: ISceneConfig): IWorkspaceCore
+}
+
+interface ITargetDistanceWiring {
+    fun createPillAndController(core: IWorkspaceCore, onRepaint: () -> Unit): Pair<Pane, ITargetDistanceController>
 }
 
 interface ITargetSubsystemBuilder {
-    fun buildTargetSubsystem(canvas: Canvas, cfg: ISceneConfig, state: ISimulationState, transformer: CoordinateTransformer): Triple<Pane, ITargetRenderer, ITargetInteractionCoordinator>
+    fun buildTargetSubsystem(canvas: Canvas, core: IWorkspaceCore, onRepaint: () -> Unit): Pair<Pane, Pair<ITargetRenderer, ITargetInteractionCoordinator>>
+}
+
+interface ISceneWiring {
+    fun buildScene(canvas: Canvas, core: IWorkspaceCore, target: ITargetRenderer, onRepaint: () -> Unit): ISceneRenderer
+}
+
+interface IWorkspaceVisualsWiring {
+    fun buildVisuals(canvas: Canvas, core: IWorkspaceCore): IWorkspaceVisuals
 }
 
 interface ISimulationWorkspaceFactory {
     fun create(canvas: Canvas, cfg: ISceneConfig): ISimulationWorkspace
 }
 
-interface ISimulationAppAssembler {
-    fun createWorkspace(canvas: Canvas, cfg: ISceneConfig): ISimulationWorkspace
+interface IFlightHooksWiring {
+    fun createHooks(ws: ISimulationWorkspace, controlsProvider: () -> IControlPanel): IFlightCompletionNotifier
+}
+
+interface IFlightEngineWiring {
     fun createEngine(ws: ISimulationWorkspace, controlsProvider: () -> IControlPanel): IAnimationEngine
-    fun createControls(ws: ISimulationWorkspace, engine: IAnimationEngine): IControlPanel
+}
+
+interface ISimControlsWiring {
+    fun buildInteractiveControls(ws: ISimulationWorkspace): IControlPanel
+}
+
+interface ISimulationAppAssembler {
+    fun defaultConfig(): ISceneConfig
+    fun createWorkspace(canvas: Canvas, cfg: ISceneConfig): ISimulationWorkspace
+    fun buildControls(ws: ISimulationWorkspace): IControlPanel
 }
 
 interface ISimulationBootstrapper {

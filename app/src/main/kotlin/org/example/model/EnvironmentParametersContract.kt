@@ -11,12 +11,4 @@ interface IEnvironmentParameters {
     fun currentMass(): Double
     fun updateMass(value: Double)
     fun toPhysicsParams(): IPhysicsParams
-
-    var gravity: Double
-        get() = currentGravity()
-        set(value) = updateGravity(value)
-
-    var mass: Double
-        get() = currentMass()
-        set(value) = updateMass(value)
 }

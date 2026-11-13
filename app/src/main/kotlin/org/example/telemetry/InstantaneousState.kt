@@ -64,8 +64,8 @@ data class InstantaneousState internal constructor(
 
     companion object {
         fun fromTrajectoryPoint(point: ITrajectoryPoint, distanceToQuery: Double = 0.0): InstantaneousState {
-            val speed = hypot(point.vx, point.vy)
-            return InstantaneousState(point.t, point.y, speed, point.x, point, distanceToQuery)
+            val speed = hypot(point.velX(), point.velY())
+            return InstantaneousState(point.timeSeconds(), point.posY(), speed, point.posX(), point, distanceToQuery)
         }
     }
 }

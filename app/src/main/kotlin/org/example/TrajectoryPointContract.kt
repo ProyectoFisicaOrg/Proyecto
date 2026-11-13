@@ -9,10 +9,4 @@ interface ITrajectoryPoint {
     fun velX(): Double
     fun velY(): Double
     fun timeSeconds(): Double
-
-    val x: Double get() = posX()
-    val y: Double get() = posY()
-    val vx: Double get() = velX()
-    val vy: Double get() = velY()
-    val t: Double get() = timeSeconds()
 }

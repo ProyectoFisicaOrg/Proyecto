@@ -13,7 +13,4 @@ interface ICollisionResult {
     fun isHit(): Boolean
     fun formatBannerText(): String
     fun bannerColorHex(): String
-
-    val status: CollisionStatus get() = collisionStatus()
-    val message: String get() = statusMessage()
 }

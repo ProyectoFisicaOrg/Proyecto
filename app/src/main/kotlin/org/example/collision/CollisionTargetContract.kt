@@ -10,7 +10,4 @@ interface ICollisionTarget {
     fun right(): Double
     fun contains(x: Double): Boolean
     fun isHit(impactX: Double, tolerance: Double = 0.0): Boolean
-
-    val centerX: Double get() = centerPosition()
-    val radius: Double get() = radiusMeters()
 }

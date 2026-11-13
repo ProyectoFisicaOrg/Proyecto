@@ -15,6 +15,4 @@ interface ITargetRenderer {
     fun getValidXRange(): ClosedFloatingPointRange<Double>
     fun randomizePosition(targetRandomizer: ITargetRandomizer? = null): Boolean
     fun installDrag()
-
-    val targetRadius: Double get() = radiusPixels()
 }

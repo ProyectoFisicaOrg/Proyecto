@@ -6,14 +6,18 @@ import javafx.scene.paint.Color
 /**
  * Estado visual encapsulado de interacción del proyectil sobre el canvas (SRP + Encapsulación).
  */
-class InteractiveEffectState(
-    x: Double,
-    y: Double,
-    isDragging: Boolean,
-    isHovered: Boolean,
-    radius: Double = 8.0
+@ConsistentCopyVisibility
+data class InteractiveEffectState internal constructor(
+    private val values: List<Double>
 ) : IInteractiveEffectState {
-    private val values: List<Double> = listOf(x, y, radius, if (isDragging) 1.0 else 0.0, if (isHovered) 1.0 else 0.0)
+
+    constructor(
+        x: Double,
+        y: Double,
+        isDragging: Boolean,
+        isHovered: Boolean,
+        radius: Double = 8.0
+    ) : this(listOf(x, y, radius, if (isDragging) 1.0 else 0.0, if (isHovered) 1.0 else 0.0))
 
     override fun isActive(): Boolean {
         return values[3] > 0.5 || values[4] > 0.5

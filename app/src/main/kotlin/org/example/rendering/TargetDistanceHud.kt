@@ -43,7 +43,7 @@ class TargetDistanceHud(
         val dims = hudSpec.second
         val cardW = dims[0]
         val cardH = dims[1]
-        val cardX = (hudSpec.first.first.canvasWidth - cardW) / 2.0
+        val cardX = (hudSpec.first.first.width() - cardW) / 2.0
         val cardY = 24.0
         gc.fill = Color.rgb(0, 0, 0, 0.32)
         gc.fillRoundRect(cardX + 3.0, cardY + 4.0, cardW, cardH, 14.0, 14.0)
@@ -85,7 +85,7 @@ class TargetDistanceHud(
     }
 
     private fun drawGroundConnectorTick(gc: GraphicsContext, targetCanvasX: Double) {
-        val groundY = hudSpec.first.first.groundY
+        val groundY = hudSpec.first.first.groundLevelY()
         gc.stroke = Color.rgb(250, 204, 21, 0.75)
         gc.lineWidth = 1.4
         gc.strokeLine(targetCanvasX, groundY + 20.0, targetCanvasX, groundY + 26.0)

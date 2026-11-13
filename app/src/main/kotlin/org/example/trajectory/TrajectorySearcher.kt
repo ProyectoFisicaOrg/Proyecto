@@ -23,15 +23,15 @@ class BinaryTrajectorySearcher : TrajectorySearcher {
         var high = points.size - 1
         while (low < high) {
             val mid = (low + high) ushr 1
-            if (points[mid].x < targetX) low = mid + 1 else high = mid
+            if (points[mid].posX() < targetX) low = mid + 1 else high = mid
         }
         return low
     }
 
     private fun chooseCloserIndex(points: List<ITrajectoryPoint>, index: Int, targetX: Double): Int {
         if (index <= 0) return index
-        val diffCurr = abs(points[index].x - targetX)
-        val diffPrev = abs(points[index - 1].x - targetX)
+        val diffCurr = abs(points[index].posX() - targetX)
+        val diffPrev = abs(points[index - 1].posX() - targetX)
         return if (diffPrev < diffCurr) index - 1 else index
     }
 }
