@@ -3,20 +3,20 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación II (RepoSense + análisis de calidad POO/SOLID). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-11-16.
+> Generado: 2026-11-17.
 
 ## 1. Veredicto
 
 | Aspecto | Resultado |
 |---|---|
-| Índice de calidad POO/SOLID | **93/100** |
+| Índice de calidad POO/SOLID | **96/100** |
 | Código (LOC) | 7,448 |
 | Archivos de código | 111 |
-| Clases (bien usadas) | 327 (155 OK) |
+| Clases (bien usadas) | 327 (183 OK) |
 | Código dentro de clases (%POO) | 99% |
 | Funciones fuera de clases | 0 |
 | Duplicación lógica | 1.7% |
-| Señales S/O/L/I/D | 0/0/0/0/28 |
+| Señales S/O/L/I/D | 0/0/0/0/3 |
 
 > Este informe **describe** lo que el análisis midió con los criterios ya establecidos de la materia. No es una nota.
 
@@ -46,7 +46,7 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Duplicación lógica | ≤ 5% | 1.7% | sí |
 | Funciones fuera de clases | ≤ 1 | 0 | sí |
 | Señales POO/SOLID críticas | ninguna | Acoplamiento alto (CBO) | no |
-| Índice de calidad POO/SOLID | ≥ 60 | 93/100 | sí |
+| Índice de calidad POO/SOLID | ≥ 60 | 96/100 | sí |
 
 ### Cómo se calcula el %POO (y por qué no sube solo)
 
@@ -74,7 +74,6 @@ Reúne lo que el análisis marcó y lo que todavía falta para cada semáforo. C
 | Falla | Tu resultado | Requisito | Archivos |
 |---|---|---|---|
 | Señales POO/SOLID críticas | Acoplamiento alto (CBO) | Destacar: ninguna | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`, `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt` |
-| Dependencia de concretos y falta de abstracciones (DIP) | **28** dependencia(s) de concretos sin abstracciones | Sin señales | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/TrajectorySimulationFactory.kt`, `app/src/main/kotlin/org/example/collision/CollisionDetector.kt`, `app/src/main/kotlin/org/example/rendering/SceneRenderer.kt`, `app/src/main/kotlin/org/example/scrubbing/TrajectoryModels.kt`, `app/src/main/kotlin/org/example/ui/ControlPanel.kt` (+8 más) |
 
 ## 4. Aspectos evaluados
 
@@ -84,7 +83,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Un resumen numérico (0-100) que combina la riqueza de clases bien usadas con la penalización por señales POO/SOLID y duplicación, y luego aplica topes duros.
 - **Por qué importa:** Ordena y prioriza la revisión: un índice bajo indica varias señales que conviene mirar juntas.
-- **Tu resultado:** índice **93/100**
+- **Tu resultado:** índice **96/100**
 
 ### 2. Duplicación lógica (DRY) (duplicacion) — sin señales
 
@@ -163,29 +162,19 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 - **Por qué importa:** Suele indicar que la jerarquía no representa bien el problema y rompe la sustitución entre clases.
 - **Tu resultado:** **0** override(s) vacío(s) o 'no implementado'
 
-### 14. Dependencia de concretos y falta de abstracciones (DIP) (dip) — con señales
-
-- **Qué mide:** Instanciación directa de clases **propias** concretas y ausencia de interfaces o clases abstractas pese al acoplamiento. No cuentan los structs ni los nodos/tipos del motor.
-- **Por qué importa:** Depender de implementaciones concretas dificulta cambiar o probar una parte sin arrastrar las demás.
-- **Tu resultado:** **28** dependencia(s) de concretos sin abstracciones
-- **Para investigar la causa:**
-    - ¿La clase crea por dentro a sus colaboradores en vez de recibirlos?
-    - ¿Hay puntos de variación que convendría expresar como abstracción?
-    - ¿Cómo se probaría esa clase cambiando una implementación?
-
-### 15. Clase sin métodos (solo datos) (data) — sin señales
+### 14. Clase sin métodos (solo datos) (data) — sin señales
 
 - **Qué mide:** Clases que solo acumulan campos y no tienen comportamiento.
 - **Por qué importa:** Separar datos de comportamiento reparte por el proyecto la lógica que debería estar cerca de esos datos.
 - **Tu resultado:** **0** clase(s) sin métodos (solo datos)
 
-### 16. Campos públicos (encapsulación) (encapsulacion) — sin señales
+### 15. Campos mutables públicos (encapsulación) (encapsulacion) — sin señales
 
-- **Qué mide:** Clases que exponen campos sin control de acceso.
+- **Qué mide:** Clases que exponen estado **modificable** desde afuera. No cuentan constantes (`static final`, `const`), campos `final`/`readonly`, propiedades `val` de Kotlin ni propiedades con `private set`.
 - **Por qué importa:** Expone el estado interno y hace que cualquier cambio dependa de quién lo modifica desde afuera.
-- **Tu resultado:** **0** clase(s) con campos públicos
+- **Tu resultado:** **0** clase(s) con campos mutables públicos
 
-### 17. Clase solo con métodos estáticos (utilitaria) (static) — sin señales
+### 16. Clase solo con métodos estáticos (utilitaria) (static) — sin señales
 
 - **Qué mide:** Clases donde todos los métodos son estáticos.
 - **Por qué importa:** Es comportamiento procedural disfrazado de clase: no se instancia ni participa del modelo de objetos.
@@ -193,14 +182,14 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 ## 5. Evolución por commit
 
-Métricas calculadas sobre el estado de `main` en **cada commit** (18 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
+Métricas calculadas sobre el estado de `main` en **cada commit** (19 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
 
 ```mermaid
 xychart-beta
     title "Índice POO/SOLID a lo largo de los commits"
-    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb", "8ff3ccd", "5e48314", "098c6a2", "5de1f3f", "f942ba6", "6669420", "93e284f", "0771dee", "13e105c", "6843beb"]
+    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb", "8ff3ccd", "5e48314", "098c6a2", "5de1f3f", "f942ba6", "6669420", "93e284f", "0771dee", "13e105c", "6843beb", "30cf392"]
     y-axis "Índice" 0 --> 100
-    line [0, 50, 50, 44, 44, 57, 66, 67, 65, 77, 88, 88, 88, 88, 88, 93, 93, 93]
+    line [0, 50, 50, 59, 58, 72, 81, 80, 74, 85, 94, 94, 94, 94, 94, 96, 96, 96, 96]
 ```
 
 | # | Fecha | Commit | Autor | LOC | Índice | %POO | Duplic. | Sueltas |
@@ -208,102 +197,22 @@ xychart-beta
 | 1 | 2026-08-14 | `3edeb24` | matteocatania | 0 | 0 | 0% | 0.0% | 0 |
 | 2 | 2026-08-21 | `c30dcd2` | agmaranon | 76 | 50 | 26% | 0.0% | 0 |
 | 3 | 2026-08-24 | `d2de63d` | dqmdz-etec | 76 | 50 | 26% | 0.0% | 0 |
-| 4 | 2026-08-28 | `fdd5f7a` | Agustin Marañon | 517 | 44 | 84% | 0.0% | 0 |
-| 5 | 2026-09-04 | `e81c689` | matteocatania | 1,767 | 44 | 93% | 0.0% | 0 |
-| 6 | 2026-09-25 | `adee280` | Agustin Marañon | 2,246 | 57 | 94% | 0.0% | 0 |
-| 7 | 2026-10-05 | `2f04017` | Agustin Marañon | 2,893 | 66 | 94% | 0.0% | 0 |
-| 8 | 2026-10-16 | `b92aafb` | matteocatania | 4,008 | 67 | 95% | 0.7% | 0 |
-| 9 | 2026-10-19 | `8ff3ccd` | matteocatania | 5,402 | 65 | 96% | 1.6% | 0 |
-| 10 | 2026-10-30 | `5e48314` | Agustin Marañon | 5,704 | 77 | 99% | 1.6% | 0 |
-| 11 | 2026-11-06 | `098c6a2` | Agustin Marañon | 6,887 | 88 | 99% | 1.8% | 0 |
-| 12 | 2026-11-07 | `5de1f3f` | dqmdz-etec | 6,887 | 88 | 99% | 1.8% | 0 |
-| 13 | 2026-11-07 | `f942ba6` | dqmdz-etec | 6,887 | 88 | 99% | 1.8% | 0 |
-| 14 | 2026-11-07 | `6669420` | dqmdz-etec | 6,887 | 88 | 99% | 1.8% | 0 |
-| 15 | 2026-11-07 | `93e284f` | dqmdz-etec | 6,887 | 88 | 99% | 1.8% | 0 |
-| 16 | 2026-11-13 | `0771dee` | Agustin Marañon | 7,448 | 93 | 99% | 1.7% | 0 |
-| 17 | 2026-11-13 | `13e105c` | dqmdz-etec | 7,448 | 93 | 99% | 1.7% | 0 |
-| 18 | 2026-11-14 | `6843beb` | dqmdz-etec | 7,448 | 93 | 99% | 1.7% | 0 |
-
-<!-- actividad-clases:inicio -->
-## Actividad en días de clase
-
-> Período evaluado **2026-08-14 → 2026-11-16** · **22 clases** (lunes, viernes) · días de clase del calendario, extendidos hasta la fecha de corte.
->
-> `Commits` = commits de trabajo (no-merge); `Merges` = merges de PR (también son push). Los días sin actividad dicen **sin actividad**. El cuadro principal usa sólo las fechas de clase del calendario oficial.
->
-> **Aportes fuera del calendario:** cada alumno tiene un cuadro aparte con las fechas no lectivas con actividad, desde **2026-08-14** hasta **2026-11-16** (ventana de aportes). Esas fechas no forman parte del cuadro principal, pero se muestran para no perder trabajo hecho en fines de semana, feriados o después del período.
->
-> Se recorre `git log --all` sobre un mirror (todas las ramas y `refs/pull/*`), con deduplicación por commit. Fecha = fecha de autor en UTC-3. Los commits locales no pusheados no se ven. Si el trabajo fue en pareja y el commit es de otra persona, figura a nombre del autor del commit; para reflejarlo, usar `Co-authored-by` o una nota manual.
->
-> Sección informativa: no modifica el semáforo de aprobación.
-
-### Agustin Marañon
-
-**10/22 clases con actividad** · 9 commits · 9 merges
-
-| Fecha | Marca | Repositorios | Commits / merges |
-|---|:--:|---|--:|
-| 2026-08-14 | No | sin actividad | 0 / 0 |
-| 2026-08-21 | **Sí** | Proyecto | 2 / 0 |
-| 2026-08-24 | No | sin actividad | 0 / 0 |
-| 2026-08-28 | **Sí** | Proyecto | 1 / 1 |
-| 2026-08-31 | No | sin actividad | 0 / 0 |
-| 2026-09-04 | **Sí** | Proyecto | 1 / 1 |
-| 2026-09-07 | **Sí** | Proyecto | 1 / 0 |
-| 2026-09-14 | **Sí** | Proyecto | 0 / 1 |
-| 2026-09-25 | **Sí** | Proyecto | 0 / 1 |
-| 2026-09-28 | No | sin actividad | 0 / 0 |
-| 2026-10-02 | No | sin actividad | 0 / 0 |
-| 2026-10-05 | **Sí** | Proyecto | 1 / 1 |
-| 2026-10-09 | No | sin actividad | 0 / 0 |
-| 2026-10-16 | No | sin actividad | 0 / 0 |
-| 2026-10-19 | No | sin actividad | 0 / 0 |
-| 2026-10-23 | No | sin actividad | 0 / 0 |
-| 2026-10-26 | No | sin actividad | 0 / 0 |
-| 2026-10-30 | **Sí** | Proyecto | 1 / 2 |
-| 2026-11-02 | No | sin actividad | 0 / 0 |
-| 2026-11-06 | **Sí** | Proyecto | 1 / 1 |
-| 2026-11-13 | **Sí** | Proyecto | 1 / 1 |
-| 2026-11-16 | No | sin actividad | 0 / 0 |
-
-#### Aportes fuera del calendario de clases — Agustin Marañon
-
-_Sin aportes fuera del calendario de clases para Agustin Marañon._
-
-### matteocatania
-
-**5/22 clases con actividad** · 5 commits · 5 merges
-
-| Fecha | Marca | Repositorios | Commits / merges |
-|---|:--:|---|--:|
-| 2026-08-14 | **Sí** | Proyecto | 1 / 0 |
-| 2026-08-21 | No | sin actividad | 0 / 0 |
-| 2026-08-24 | No | sin actividad | 0 / 0 |
-| 2026-08-28 | No | sin actividad | 0 / 0 |
-| 2026-08-31 | **Sí** | Proyecto | 1 / 0 |
-| 2026-09-04 | **Sí** | Proyecto | 0 / 2 |
-| 2026-09-07 | No | sin actividad | 0 / 0 |
-| 2026-09-14 | No | sin actividad | 0 / 0 |
-| 2026-09-25 | No | sin actividad | 0 / 0 |
-| 2026-09-28 | No | sin actividad | 0 / 0 |
-| 2026-10-02 | No | sin actividad | 0 / 0 |
-| 2026-10-05 | No | sin actividad | 0 / 0 |
-| 2026-10-09 | No | sin actividad | 0 / 0 |
-| 2026-10-16 | **Sí** | Proyecto | 1 / 2 |
-| 2026-10-19 | **Sí** | Proyecto | 2 / 1 |
-| 2026-10-23 | No | sin actividad | 0 / 0 |
-| 2026-10-26 | No | sin actividad | 0 / 0 |
-| 2026-10-30 | No | sin actividad | 0 / 0 |
-| 2026-11-02 | No | sin actividad | 0 / 0 |
-| 2026-11-06 | No | sin actividad | 0 / 0 |
-| 2026-11-13 | No | sin actividad | 0 / 0 |
-| 2026-11-16 | No | sin actividad | 0 / 0 |
-
-#### Aportes fuera del calendario de clases — matteocatania
-
-_Sin aportes fuera del calendario de clases para matteocatania._
-
-<!-- actividad-clases:fin -->
+| 4 | 2026-08-28 | `fdd5f7a` | Agustin Marañon | 517 | 59 | 84% | 0.0% | 0 |
+| 5 | 2026-09-04 | `e81c689` | matteocatania | 1,767 | 58 | 93% | 0.0% | 0 |
+| 6 | 2026-09-25 | `adee280` | Agustin Marañon | 2,246 | 72 | 94% | 0.0% | 0 |
+| 7 | 2026-10-05 | `2f04017` | Agustin Marañon | 2,893 | 81 | 94% | 0.0% | 0 |
+| 8 | 2026-10-16 | `b92aafb` | matteocatania | 4,008 | 80 | 95% | 1.2% | 0 |
+| 9 | 2026-10-19 | `8ff3ccd` | matteocatania | 5,402 | 74 | 96% | 2.9% | 0 |
+| 10 | 2026-10-30 | `5e48314` | Agustin Marañon | 5,704 | 85 | 99% | 1.6% | 0 |
+| 11 | 2026-11-06 | `098c6a2` | Agustin Marañon | 6,887 | 94 | 99% | 1.8% | 0 |
+| 12 | 2026-11-07 | `5de1f3f` | dqmdz-etec | 6,887 | 94 | 99% | 1.8% | 0 |
+| 13 | 2026-11-07 | `f942ba6` | dqmdz-etec | 6,887 | 94 | 99% | 1.8% | 0 |
+| 14 | 2026-11-07 | `6669420` | dqmdz-etec | 6,887 | 94 | 99% | 1.8% | 0 |
+| 15 | 2026-11-07 | `93e284f` | dqmdz-etec | 6,887 | 94 | 99% | 1.8% | 0 |
+| 16 | 2026-11-13 | `0771dee` | Agustin Marañon | 7,448 | 96 | 99% | 1.7% | 0 |
+| 17 | 2026-11-13 | `13e105c` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
+| 18 | 2026-11-14 | `6843beb` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
+| 19 | 2026-11-16 | `30cf392` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
 
 ---
 _Informe generado por la cátedra. Los criterios y umbrales de medición corresponden al perfil `exigente` de `calidad.py`; el semáforo de aprobación, a `CRITERIOS-CALIDAD.md` (ver `README.md`). Ante dudas, revisá el archivo señalado._
