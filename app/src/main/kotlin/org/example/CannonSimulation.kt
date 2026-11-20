@@ -375,6 +375,7 @@ class CannonSimulation(
     private val bootstrapper: ISimulationBootstrapper
 ) : Application() {
 
+    @JvmOverloads
     constructor(provider: () -> ISimulationBootstrapper = ::DefaultSimulationBootstrapper) : this(provider())
 
     override fun start(primaryStage: Stage) {
