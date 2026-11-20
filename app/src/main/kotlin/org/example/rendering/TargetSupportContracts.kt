@@ -35,6 +35,7 @@ interface ITargetInitSpec {
     fun notifyMoved(newX: Double)
     fun notifyRepaint()
     fun customRandomizer(): ITargetRandomizer?
+    fun buildRenderer(): ITargetRenderer
 }
 
 interface ITargetComponentsBundle {

@@ -16,7 +16,7 @@ import org.example.ui.TargetDistanceSpec
 /**
  * Doble de prueba en memoria para el puerto de texto del campo bajo el blanco (DIP).
  */
-private class FakeOverlayTextPort(initial: String) : ITextInputPort {
+private data class FakeOverlayTextPort(private val initial: String) : ITextInputPort {
     private val slot: MutableList<Pair<Pair<String, Boolean>, Triple<((String) -> Boolean)?, ((String) -> Unit)?, (() -> Unit)?>>> =
         mutableListOf(Pair(Pair(initial, false), Triple(null, null, null)))
 
@@ -60,10 +60,9 @@ private class FakeOverlayTextPort(initial: String) : ITextInputPort {
 /**
  * Doble de prueba en memoria para la vista flotante bajo el blanco (DIP).
  */
-private class FakeTargetOverlayView(
-    port: FakeOverlayTextPort = FakeOverlayTextPort("264.00")
+private data class FakeTargetOverlayView(
+    private val slot: MutableList<Triple<FakeOverlayTextPort, Double, Boolean>> = mutableListOf(Triple(FakeOverlayTextPort("264.00"), 750.0, false))
 ) : ITargetOverlayView {
-    private val slot: MutableList<Triple<FakeOverlayTextPort, Double, Boolean>> = mutableListOf(Triple(port, 750.0, false))
 
     override fun textPort(): ITextInputPort {
         return slot[0].first
@@ -99,11 +98,15 @@ private class FakeTargetOverlayView(
 /**
  * Estrategia determinista para probar sincronización con objetivo aleatorio.
  */
-private class FixedTargetRandomizer(
+private data class FixedTargetRandomizer(
     private val chosenCanvasX: Double
 ) : ITargetRandomizer {
     override fun calculateRandomX(minX: Double, maxX: Double): Double {
         return chosenCanvasX.coerceIn(minX, maxX)
+    }
+
+    fun configuredX(): Double {
+        return chosenCanvasX
     }
 }
 
@@ -131,6 +134,10 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
         assertEquals(264.0, spec.resolveCommittedMeters("."), 1e-4)
     }
 
+    private fun newController(state: ISimulationState, overlay: FakeTargetOverlayView): TargetDistanceController {
+        return TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.changeTargetX(it) })
+    }
+
     @Test
     fun test_typing_distance_moves_target_and_updates_top_hud_and_rejects_letters() {
         val geom = fixture.first.geometry()
@@ -138,7 +145,7 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
         state.changeTargetX(750.0)
         val overlay = FakeTargetOverlayView()
         val topHud = TargetDistanceHud(geom.config(), geom.transformer())
-        TargetDistanceController(TargetDistanceSpec(), geom.transformer(), overlay, { state.changeTargetX(it) }).bind()
+        newController(state, overlay).bind()
         overlay.textPort().updateText("abc$#@")
         assertEquals("264.00", overlay.textPort().currentText())
         overlay.typeAndCommit("100")
@@ -162,10 +169,11 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
         val state = fixture.second.freshState()
         state.changeTargetX(750.0)
         val overlay = FakeTargetOverlayView()
-        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.changeTargetX(it) })
+        val controller = newController(state, overlay)
         controller.bind()
         val renderer = fixture.first.createObservedRenderer(state, { newX -> state.changeTargetX(newX); controller.syncFromCanvasX(newX) }, {})
-        assertTrue(renderer.randomizePosition(FixedTargetRandomizer(590.0)))
+        val randomizer = FixedTargetRandomizer(590.0)
+        assertTrue(renderer.randomizePosition(randomizer) && randomizer.configuredX() == 590.0)
         assertEquals("200.00", overlay.textPort().currentText())
         assertEquals(590.0, overlay.positionedCanvasX(), 1e-4)
     }
@@ -176,7 +184,7 @@ class TargetDistanceEditableFieldTest : ISimulationTestSuite {
         state.changeTargetX(590.0)
         val overlay = FakeTargetOverlayView()
         overlay.textPort().updateText("200.00")
-        val controller = TargetDistanceController(TargetDistanceSpec(), fixture.first.geometry().transformer(), overlay, { state.changeTargetX(it) })
+        val controller = newController(state, overlay)
         controller.bind()
         assertFalse(overlay.isLocked())
         controller.prepareForLaunch()

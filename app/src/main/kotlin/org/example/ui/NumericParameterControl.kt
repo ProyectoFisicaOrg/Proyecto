@@ -47,8 +47,7 @@ object DefaultNumericValidator : INumericInputValidator {
 /**
  * Especificación encapsulada de límites, valor por defecto y formato de un parámetro numérico (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class NumericParameterSpec internal constructor(
+data class NumericParameterSpec(
     private val labelTitle: String,
     private val numericConfig: List<Double>,
     private val defaultValidator: INumericInputValidator

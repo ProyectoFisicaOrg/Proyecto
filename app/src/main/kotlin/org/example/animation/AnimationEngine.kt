@@ -29,16 +29,17 @@ class FlightCollisionEvaluator(
 /**
  * Empaquetado cohesivo e inmutable de callbacks de ciclo de vida del vuelo (SRP).
  */
-class FlightEventHooks(
-    onUpdate: () -> Unit,
-    onFinished: () -> Unit,
-    onTick: ((Double, Double) -> Unit)? = null,
-    collisionListener: CollisionListener? = null,
-    onOutOfBounds: (() -> Unit)? = null,
-    onFlightCompleted: ((ITrajectoryMatrixSummary) -> Unit)? = null
+data class FlightEventHooks(
+    private val hooks: Pair<Triple<() -> Unit, () -> Unit, (() -> Unit)?>, Triple<((Double, Double) -> Unit)?, CollisionListener?, ((ITrajectoryMatrixSummary) -> Unit)?>>
 ) : IFlightCompletionNotifier {
-    private val hooks: Pair<Triple<() -> Unit, () -> Unit, (() -> Unit)?>, Triple<((Double, Double) -> Unit)?, CollisionListener?, ((ITrajectoryMatrixSummary) -> Unit)?>> =
-        Pair(Triple(onUpdate, onFinished, onOutOfBounds), Triple(onTick, collisionListener, onFlightCompleted))
+    constructor(
+        onUpdate: () -> Unit,
+        onFinished: () -> Unit,
+        onTick: ((Double, Double) -> Unit)? = null,
+        collisionListener: CollisionListener? = null,
+        onOutOfBounds: (() -> Unit)? = null,
+        onFlightCompleted: ((ITrajectoryMatrixSummary) -> Unit)? = null
+    ) : this(Pair(Triple(onUpdate, onFinished, onOutOfBounds), Triple(onTick, collisionListener, onFlightCompleted)))
 
     override fun notifyUpdate() {
         hooks.first.first.invoke()

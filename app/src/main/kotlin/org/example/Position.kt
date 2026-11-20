@@ -5,8 +5,7 @@ import kotlin.math.hypot
 /**
  * Objeto de valor inmutable y encapsulado que representa una posición en el espacio 2D (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class Position internal constructor(
+data class Position(
     private val coords: List<Double>
 ) : IPosition {
 

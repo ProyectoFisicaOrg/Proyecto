@@ -53,7 +53,7 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
     @Test
     fun test_animation_engine_begins_at_launch_point_and_starts_ticker() {
         val state = fixture.second.configuredState(40.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         val trailPoints = mutableListOf<Pair<Double, Double>>()
         var updateCalled = false
         val hooks = FlightEventHooks(onUpdate = { updateCalled = true }, onFinished = {}, onTick = { x, y -> trailPoints.add(Pair(x, y)) })
@@ -70,7 +70,7 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
     @Test
     fun test_animation_interpolates_smoothly_along_trajectory_time() {
         val state = fixture.second.configuredState(50.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         val trailPoints = mutableListOf<Pair<Double, Double>>()
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onTick = { x, y -> trailPoints.add(Pair(x, y)) })
         val engine = fixture.first.createEngine(state, hooks, ticker)
@@ -86,7 +86,7 @@ class FlightAnimationAndTargetTest : ISimulationTestSuite {
 
     @Test
     fun test_animation_engine_defaults_to_240_samples_per_second_for_high_fluid_fps() {
-        val engine = fixture.first.createEngine(fixture.second.configuredState(20.0), FlightEventHooks({}, {}), ManualFrameTicker())
+        val engine = fixture.first.createEngine(fixture.second.configuredState(20.0), FlightEventHooks({}, {}), TestTickerFactory().newTicker())
         assertEquals(240, engine.getSamplesPerSecond())
     }
 }
@@ -109,7 +109,7 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
     @Test
     fun test_ground_impact_invokes_collision_detector_with_HIT_when_target_is_placed_at_impact() {
         val state = fixture.second.configuredState(40.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         var reported: ICollisionResult? = null
         var finished = false
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = { finished = true }, collisionListener = CollisionCallbackAdapter { reported = it })
@@ -127,7 +127,7 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
     @Test
     fun test_ground_impact_invokes_collision_detector_with_MISS_when_target_is_far_away() {
         val state = fixture.second.configuredState(30.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         var reported: ICollisionResult? = null
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, collisionListener = CollisionCallbackAdapter { reported = it })
         val engine = fixture.first.createEngine(state, hooks, ticker)
@@ -145,7 +145,7 @@ class FlightImpactAndBoundsTest : ISimulationTestSuite {
     @Test
     fun test_trail_points_are_preserved_after_flight_stops() {
         val state = fixture.second.configuredState(30.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         val trailPoints = mutableListOf<Pair<Double, Double>>()
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onTick = { x, y -> trailPoints.add(Pair(x, y)) })
         val engine = fixture.first.createEngine(state, hooks, ticker)
@@ -173,8 +173,8 @@ class FlightPlaybackAndBoundsTest : ISimulationTestSuite {
     fun test_timeScale_accelerates_simulation_playback() {
         val stateNormal = fixture.second.configuredState(50.0)
         val stateFast = fixture.second.configuredState(50.0)
-        val tickerNormal = ManualFrameTicker()
-        val tickerFast = ManualFrameTicker()
+        val tickerNormal = TestTickerFactory().newTicker()
+        val tickerFast = TestTickerFactory().newTicker()
         val engineNormal = fixture.first.createEngine(stateNormal, FlightEventHooks({}, {}), tickerNormal)
         engineNormal.updateTimeScale(1.0)
         engineNormal.start()
@@ -191,7 +191,7 @@ class FlightPlaybackAndBoundsTest : ISimulationTestSuite {
     @Test
     fun test_projectile_leaving_canvas_square_automatically_resets_simulation_and_restores_cannon_position() {
         val state = fixture.second.configuredState(90.0, ang = 20.0)
-        val ticker = ManualFrameTicker()
+        val ticker = TestTickerFactory().newTicker()
         var outOfBoundsTriggered = false
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onOutOfBounds = { outOfBoundsTriggered = true })
         val engine = fixture.first.createEngine(state, hooks, ticker)
@@ -214,7 +214,7 @@ class FlightPlaybackAndBoundsTest : ISimulationTestSuite {
         state.changeAnimating(true)
         var callbackCalled = false
         val hooks = FlightEventHooks(onUpdate = {}, onFinished = {}, onOutOfBounds = { callbackCalled = true })
-        val engine = fixture.first.createEngine(state, hooks, ManualFrameTicker())
+        val engine = fixture.first.createEngine(state, hooks, TestTickerFactory().newTicker())
         engine.reset()
         val cfg = fixture.first.geometry().config()
         val proj = state.currentProjectileCoords()
@@ -234,9 +234,13 @@ class PathTrailFadeTest : ISimulationTestSuite {
         return "PathTrailFadeTest"
     }
 
+    private fun newTrail(duration: Double): PathRenderer {
+        return PathRenderer(gc = null, fadeDelaySeconds = 2.0, fadeDurationSeconds = duration, baseAlpha = 0.50)
+    }
+
     @Test
     fun test_path_renderer_preserves_full_opacity_during_first_2_seconds() {
-        val pathRenderer = PathRenderer(gc = null, fadeDelaySeconds = 2.0, fadeDurationSeconds = 1.5, baseAlpha = 0.50)
+        val pathRenderer = newTrail(1.5)
         val launchNano = 10_000_000_000L
         pathRenderer.recordLaunch(launchNano)
         assertEquals(0.50, pathRenderer.getOpacity(launchNano + 1_000_000_000L), 1e-4)
@@ -245,7 +249,7 @@ class PathTrailFadeTest : ISimulationTestSuite {
 
     @Test
     fun test_path_renderer_fades_progressively_after_2_seconds_and_clears_on_expiration() {
-        val pathRenderer = PathRenderer(gc = null, fadeDelaySeconds = 2.0, fadeDurationSeconds = 1.0, baseAlpha = 0.50)
+        val pathRenderer = newTrail(1.0)
         val launchNano = 10_000_000_000L
         pathRenderer.recordLaunch(launchNano)
         pathRenderer.addPoint(10.0, 10.0)
@@ -258,7 +262,7 @@ class PathTrailFadeTest : ISimulationTestSuite {
 
     @Test
     fun test_path_renderer_fades_progressively_from_the_starting_point_towards_the_head() {
-        val pathRenderer = PathRenderer(gc = null, fadeDelaySeconds = 2.0, fadeDurationSeconds = 1.0, baseAlpha = 0.50)
+        val pathRenderer = newTrail(1.0)
         val launchNano = 10_000_000_000L
         pathRenderer.recordLaunch(launchNano)
         listOf(0.0 to 0.0, 25.0 to 10.0, 50.0 to 20.0, 75.0 to 15.0, 100.0 to 0.0).forEach { (x, y) ->

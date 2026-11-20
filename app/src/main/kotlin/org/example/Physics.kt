@@ -8,8 +8,7 @@ import kotlin.math.sin
 /**
  * Parámetros de física inmutables y encapsulados para el cálculo de la trayectoria (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class PhysicsParams internal constructor(
+data class PhysicsParams(
     private val values: List<Double>
 ) : IPhysicsParams {
 
@@ -67,8 +66,7 @@ data class PhysicsParams internal constructor(
 /**
  * Punto cinemático encapsulado en la trayectoria con posición, velocidad y tiempo (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TrajectoryPoint internal constructor(
+data class TrajectoryPoint(
     private val values: List<Double>
 ) : ITrajectoryPoint {
 
@@ -173,8 +171,7 @@ object TrajectoryCalculatorFactory : ITrajectoryCalculatorFactory {
 /**
  * Frame de animación con la información cinemática del proyectil en un instante (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TrajectoryFrame internal constructor(
+data class TrajectoryFrame(
     private val values: List<Double>
 ) : ITrajectoryPoint {
 
@@ -224,8 +221,7 @@ data class TrajectoryFrame internal constructor(
 /**
  * Datos completos encapsulados de la simulación: parámetros, resultados y frames (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TrajectoryData internal constructor(
+data class TrajectoryData(
     private val content: Triple<IPhysicsParams, List<Double>, List<TrajectoryFrame>>
 ) : ITrajectoryData {
 

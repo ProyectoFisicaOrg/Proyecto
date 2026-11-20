@@ -26,8 +26,7 @@ interface IWorkspaceVisuals {
 /**
  * Contrato abstracto del espacio de trabajo visual e interactivo de la escena (ISP + DIP).
  */
-interface ISimulationWorkspace : IWorkspaceCore {
-    fun canvasLayer(): Pane
+interface ISimulationWorkspace : IWorkspaceCore, IWorkspaceVisuals {
     fun renderScene()
     fun recordTrailPoint(x: Double, y: Double)
     fun randomizeTarget()

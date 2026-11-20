@@ -7,8 +7,7 @@ import org.example.telemetry.DefaultTelemetryProvider
 /**
  * Punto discreto encapsulado sobre la curva de la trayectoria con vistas bilingües (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TrajectoryPoint internal constructor(
+data class TrajectoryPoint(
     private val values: List<Double>
 ) : ISpanishKinematicView {
 
@@ -59,8 +58,7 @@ data class TrajectoryPoint internal constructor(
 /**
  * Resumen consolidado y encapsulado del vuelo tras impactar en el suelo (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class FlightSummary internal constructor(
+data class FlightSummary(
     private val values: List<Double>
 ) : ISpanishFlightSummaryView {
 

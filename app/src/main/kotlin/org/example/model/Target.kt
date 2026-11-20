@@ -6,8 +6,7 @@ import org.example.collision.ICollisionTarget
 /**
  * Objetivo circular desplazable sobre el suelo (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class Target internal constructor(
+data class Target(
     private val specs: List<Double>
 ) : ICollisionTarget {
 

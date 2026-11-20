@@ -75,7 +75,11 @@ class DefaultTrajectorySimulationFactory(
     collision: ICollisionBuilder
 ) : ITrajectorySimulationFactory, IKinematicsBuilder by kinematics, ISearcherBuilder by searcher, ICollisionBuilder by collision {
 
-    constructor() : this(SimulationFactoryWiring, SimulationFactoryWiring, SimulationFactoryWiring)
+    constructor(
+        kinProvider: () -> IKinematicsBuilder = ::DefaultKinematicsBuilder,
+        searchProvider: () -> ISearcherBuilder = ::DefaultSearcherBuilder,
+        colProvider: () -> ICollisionBuilder = ::DefaultCollisionBuilder
+    ) : this(kinProvider(), searchProvider(), colProvider())
 
     override fun factoryName(): String {
         return "DefaultTrajectorySimulationFactory"
@@ -85,11 +89,7 @@ class DefaultTrajectorySimulationFactory(
 /**
  * Raíz de composición predeterminada para los ensambladores de trayectoria (DIP).
  */
-object SimulationFactoryWiring : ITrajectorySimulationFactory by DefaultTrajectorySimulationFactory(
-    DefaultKinematicsBuilder(),
-    DefaultSearcherBuilder(),
-    DefaultCollisionBuilder()
-) {
+object SimulationFactoryWiring : ITrajectorySimulationFactory by DefaultTrajectorySimulationFactory() {
     override fun factoryName(): String {
         return "DefaultTrajectorySimulationFactory"
     }

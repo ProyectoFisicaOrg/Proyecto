@@ -10,6 +10,7 @@ import org.example.scrubbing.InteractiveEffectState
 import org.example.scrubbing.InteractiveProjectileRenderer
 import org.example.scrubbing.ResultsHUD
 import org.example.scrubbing.TooltipAnchor
+import org.example.scrubbing.TooltipBounds
 import org.example.scrubbing.TooltipRenderer
 
 /**
@@ -74,7 +75,9 @@ class ScrubbingFeedbackPainter(
  */
 object ScrubbingFeedbackWiring : IScrubbingFeedbackWiring {
     override fun createFeedbackPainter(): IScrubbingFeedbackPainter {
-        return ScrubbingFeedbackPainter(ResultsHUD(24.0, 24.0), TooltipRenderer(), InteractiveProjectileRenderer())
+        val tooltip = (::TooltipRenderer)(155.0, 56.0, 18.0, ::TooltipBounds)
+        val effect = (::InteractiveProjectileRenderer)()
+        return ScrubbingFeedbackPainter(ResultsHUD(24.0, 24.0), tooltip, effect)
     }
 }
 
@@ -141,13 +144,13 @@ class SceneRenderer(
  */
 object DefaultSceneryBuilder : ISceneryBuilder {
     override fun buildScenery(gc: GraphicsContext, cfg: ISceneConfig): IScenery {
-        return Scenery(SkyBackdropPainter(gc, cfg), GroundFoliagePainter(gc, cfg))
+        return Scenery((::SkyBackdropPainter)(gc, cfg), GroundFoliagePainter(gc, cfg))
     }
 }
 
 object DefaultCannonBuilder : ICannonBuilder {
     override fun buildCannon(gc: GraphicsContext, cfg: ISceneConfig): ICannonRenderer {
-        return CannonRenderer(CannonBarrelPainter(gc, cfg), CannonMountPainter(gc, cfg))
+        return CannonRenderer((::CannonBarrelPainter)(gc, cfg, ::CannonDecalPainter), CannonMountPainter(gc, cfg))
     }
 }
 
@@ -168,8 +171,7 @@ object DefaultSceneOverlayBuilder : ISceneOverlayBuilder {
 /**
  * Datos encapsulados de entrada para ensamblar un [ISceneRenderer] (SRP).
  */
-@ConsistentCopyVisibility
-data class SceneRenderInput internal constructor(
+data class SceneRenderInput(
     private val pack: Pair<Triple<GraphicsContext, ISceneConfig, CoordinateTransformer>, Triple<ISimulationState, IPathRenderer, ITargetRenderer>>
 ) : ISceneRenderInput {
 

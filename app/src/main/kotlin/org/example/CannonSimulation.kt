@@ -27,7 +27,7 @@ import org.example.rendering.PathRenderer
 import org.example.rendering.SceneConfig
 import org.example.rendering.SceneRenderInput
 import org.example.rendering.SceneRendererWiring
-import org.example.rendering.TargetRenderer
+import org.example.rendering.TargetInitSpec
 import org.example.scrubbing.ITrajectoryInspector
 import org.example.scrubbing.PhysicsTrajectoryInspectorAdapter
 import org.example.scrubbing.ScrubbingController
@@ -101,8 +101,7 @@ class TargetInteractionCoordinator(
 /**
  * Núcleo inmutable de estado, configuración, transformador y estela del espacio de trabajo (SRP).
  */
-@ConsistentCopyVisibility
-data class WorkspaceCore internal constructor(
+data class WorkspaceCore(
     private val pack: Pair<Pair<ISimulationState, ISceneConfig>, Pair<CoordinateTransformer, IPathRenderer>>
 ) : IWorkspaceCore {
 
@@ -133,8 +132,7 @@ data class WorkspaceCore internal constructor(
 /**
  * Contenedor inmutable de capas visuales y coordinadores de escena (SRP).
  */
-@ConsistentCopyVisibility
-data class WorkspaceVisuals internal constructor(
+data class WorkspaceVisuals(
     private val pack: Triple<Pane, ITargetInteractionCoordinator, ISceneRenderer>
 ) : IWorkspaceVisuals {
 
@@ -164,13 +162,9 @@ class SimulationWorkspace(
     core: IWorkspaceCore,
     visuals: IWorkspaceVisuals,
     inspectorFactory: (ITrajectoryMatrixSummary, CoordinateTransformer) -> ITrajectoryInspector = ::PhysicsTrajectoryInspectorAdapter
-) : ISimulationWorkspace, IWorkspaceCore by core {
+) : ISimulationWorkspace, IWorkspaceCore by core, IWorkspaceVisuals by visuals {
     private val ctx: Triple<IWorkspaceCore, IWorkspaceVisuals, (ITrajectoryMatrixSummary, CoordinateTransformer) -> ITrajectoryInspector> =
         Triple(core, visuals, inspectorFactory)
-
-    override fun canvasLayer(): Pane {
-        return ctx.second.canvasLayer()
-    }
 
     override fun renderScene() {
         ctx.second.sceneRenderer().render()
@@ -219,7 +213,8 @@ class SimulationWorkspace(
  */
 object DefaultWorkspaceCoreBuilder : IWorkspaceCoreBuilder {
     override fun buildCore(canvas: Canvas, cfg: ISceneConfig): IWorkspaceCore {
-        return WorkspaceCore(SimulationState(), cfg, DefaultCoordinateTransformer(cfg, 2.5), PathRenderer(canvas.graphicsContext2D))
+        val tr = (::DefaultCoordinateTransformer)(cfg, 2.5)
+        return WorkspaceCore(SimulationState(), cfg, tr, PathRenderer(canvas.graphicsContext2D))
     }
 }
 
@@ -240,11 +235,12 @@ object DefaultTargetSubsystemBuilder : ITargetSubsystemBuilder {
     override fun buildTargetSubsystem(canvas: Canvas, core: IWorkspaceCore, onRepaint: () -> Unit): Pair<Pane, Pair<ITargetRenderer, ITargetInteractionCoordinator>> {
         val st = core.stateModel()
         val pillCtrl = TargetDistanceWiring.createPillAndController(core, onRepaint)
-        val target = TargetRenderer(
-            canvas.graphicsContext2D, core.sceneConfig(), canvas, st,
-            onTargetPositionChanged = { x -> st.changeTargetX(x); pillCtrl.second.syncFromCanvasX(x); onRepaint() },
-            onRepaint = onRepaint
+        val spec = TargetInitSpec(
+            canvas.graphicsContext2D, canvas, core.sceneConfig(), st,
+            { x -> st.changeTargetX(x); pillCtrl.second.syncFromCanvasX(x); onRepaint() },
+            onRepaint
         )
+        val target = spec.buildRenderer()
         val w = core.sceneConfig().width()
         val h = core.sceneConfig().height()
         val layer = Pane(canvas, pillCtrl.first).apply {

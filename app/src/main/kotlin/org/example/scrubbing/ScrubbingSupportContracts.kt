@@ -34,7 +34,7 @@ interface IScrubbingHitTester {
     fun findCurvePointWithinThreshold(inspector: ITrajectoryInspector, canvasX: Double, canvasY: Double): ISpanishKinematicView?
 }
 
-interface IScrubbingSyncPort {
+interface IScrubbingSyncPort : IScrubbingHitTester {
     fun projectileCoords(): Pair<Double, Double>
     fun commitSelectedPoint(point: ISpanishKinematicView)
     fun requestRepaint()
