@@ -28,8 +28,7 @@ enum class CollisionStatus(
 /**
  * Punto de impacto resultante de una colisión con un objetivo (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class ImpactResult internal constructor(
+data class ImpactResult(
     private val content: Triple<ITrajectoryPoint, ICollisionTarget, Pair<Double, Double>>
 ) : IImpactResult {
 
@@ -73,8 +72,7 @@ data class ImpactResult internal constructor(
 /**
  * Resultado completo y encapsulado de la verificación de colisión (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class CollisionResult internal constructor(
+data class CollisionResult(
     private val content: Triple<CollisionStatus, IImpactResult?, String>
 ) : ICollisionResult {
 

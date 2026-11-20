@@ -3,11 +3,13 @@ package org.example.rendering
 /**
  * Configuración geométrica encapsulada y cohesiva del escenario (SRP + Encapsulación).
  */
-class SceneConfig(
-    canvasWidth: Double = 900.0,
-    canvasHeight: Double = 550.0
+data class SceneConfig(
+    private val dims: List<Double>
 ) : ISceneConfig {
-    private val dims: List<Double> = listOf(canvasWidth, canvasHeight, canvasHeight - 80.0, 90.0, 46.0, 12.0)
+    constructor(
+        canvasWidth: Double = 900.0,
+        canvasHeight: Double = 550.0
+    ) : this(listOf(canvasWidth, canvasHeight, canvasHeight - 80.0, 90.0, 46.0, 12.0))
 
     override fun width(): Double {
         return dims[0]

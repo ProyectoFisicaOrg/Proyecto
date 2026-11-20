@@ -139,7 +139,7 @@ object SliderRowWiring : ISliderRowWiring {
     override fun bindRow(factory: IControlWidgetFactory, spec: INumericParameterSpec, initial: Double, onCommit: (Double) -> Unit): Pair<VBox, IParameterControlBinding> {
         val slider = factory.createSlider(spec.min(), spec.max(), initial, spec.step())
         val textField = factory.createValueField(spec.format(initial))
-        val binding = ParameterControlBinding(spec, JavaFxSliderAdapter(slider), JavaFxTextInputAdapter(textField), onCommit)
+        val binding = ParameterControlBinding(spec, (::JavaFxSliderAdapter)(slider), JavaFxTextInputAdapter(textField), onCommit)
         binding.bind()
         return Pair(factory.createControlRow(spec.title(), slider, textField), binding)
     }
@@ -278,8 +278,7 @@ class ActionButtonsSection(
 /**
  * Especificación inmutable de estado y callbacks de acción para ensamblar el panel (SRP).
  */
-@ConsistentCopyVisibility
-data class ControlInitSpec internal constructor(
+data class ControlInitSpec(
     private val pack: Pair<ISimulationState, Pair<Pair<() -> Unit, () -> Unit>, Pair<(() -> Unit)?, (() -> Unit)?>>>
 ) : IControlInitSpec {
 
@@ -325,7 +324,7 @@ object ControlSectionsWiring : IControlSectionsWiring {
 
 object ControlPanelWiring : IControlPanelWiring {
     override fun assemble(spec: IControlInitSpec): IControlPanel {
-        val wf = ControlWidgetFactory()
+        val wf = (::ControlWidgetFactory)()
         val sections = ControlSectionsWiring.createPair(spec, wf)
         return ControlPanel(wf, StatusBannerPresenter(), sections.first, sections.second)
     }

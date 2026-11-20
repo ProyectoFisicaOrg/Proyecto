@@ -9,8 +9,7 @@ import org.example.Position
 /**
  * Estado instantáneo encapsulado (telemetría) del proyectil en un punto específico (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class InstantaneousState internal constructor(
+data class InstantaneousState(
     private val stateData: Pair<List<Double>, Pair<ITrajectoryPoint, IPosition>>
 ) : IInstantaneousState {
 

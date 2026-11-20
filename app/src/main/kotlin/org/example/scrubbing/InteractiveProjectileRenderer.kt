@@ -6,8 +6,7 @@ import javafx.scene.paint.Color
 /**
  * Estado visual encapsulado de interacción del proyectil sobre el canvas (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class InteractiveEffectState internal constructor(
+data class InteractiveEffectState(
     private val values: List<Double>
 ) : IInteractiveEffectState {
 

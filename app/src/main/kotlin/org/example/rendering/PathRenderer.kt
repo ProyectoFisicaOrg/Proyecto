@@ -10,8 +10,7 @@ import kotlin.math.hypot
 /**
  * Punto individual encapsulado de la estela con coordenadas y marca temporal (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TrailPoint internal constructor(
+data class TrailPoint(
     private val coords: List<Double>,
     private val timestampNano: Long
 ) : ITrailPoint {

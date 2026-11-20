@@ -6,6 +6,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.example.model.ISimulationState
 import org.example.model.ITrajectoryMatrixSummary
 import org.example.rendering.PathRenderer
 import org.example.scrubbing.FlightSummary
@@ -35,11 +36,19 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
         return fixture.third.matrix(vel = 40.0, samples = 120)
     }
 
+    private fun newInspector(matrix: ITrajectoryMatrixSummary): ITrajectoryInspector {
+        return PhysicsTrajectoryInspectorAdapter(matrix, fixture.first.transformer())
+    }
+
+    private fun newController(state: ISimulationState = fixture.second.freshState()): ScrubbingController {
+        return ScrubbingController(state, fixture.first.transformer(), fixture.first.config())
+    }
+
     @Test
     fun test_physics_adapter_correctly_implements_ITrajectoryInspector() {
         val matrix = createSampleMatrix()
         val transformer = fixture.first.transformer()
-        val inspector: ITrajectoryInspector = PhysicsTrajectoryInspectorAdapter(matrix, transformer)
+        val inspector: ITrajectoryInspector = newInspector(matrix)
         val nearestPhysical = inspector.findNearestPoint(50.0, 20.0)
         assertTrue(nearestPhysical.speedValue() > 0.0 && nearestPhysical.timeValue() > 0.0)
         val nearestFromCursor = inspector.findNearestPointFromCursor(transformer.toCanvasX(50.0), transformer.toCanvasY(20.0))
@@ -52,13 +61,12 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
 
     @Test
     fun test_scrubbing_is_disabled_before_projectile_impact_and_only_enabled_post_flight() {
-        val geom = fixture.first
-        val controller = ScrubbingController(fixture.second.freshState(), geom.transformer(), geom.config())
+        val controller = newController()
         assertFalse(controller.checkEnabled() || controller.checkDragging())
         assertNull(controller.currentInspector())
         assertFalse(controller.handleMousePressed(100.0, 100.0))
         val matrix = createSampleMatrix()
-        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, geom.transformer()))
+        controller.enable(newInspector(matrix))
         assertTrue(controller.checkEnabled())
         assertNotNull(controller.selectedTrajectoryPoint())
         assertEquals(matrix.totalTimeOfFlight(), controller.currentFlightSummary()?.flightTimeSeconds())
@@ -68,9 +76,9 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
     fun test_scrubbing_precisely_snaps_projectile_position_to_the_prior_trajectory_curve() {
         val state = fixture.second.freshState()
         val transformer = fixture.first.transformer()
-        val controller = ScrubbingController(state, transformer, fixture.first.config())
+        val controller = newController(state)
         val matrix = createSampleMatrix()
-        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, transformer))
+        controller.enable(newInspector(matrix))
         val pts = matrix.trajectoryPoints()
         val midPt = pts[pts.size / 2]
         val midX = transformer.toCanvasX(midPt.posX())
@@ -91,10 +99,9 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
         state.changeTargetX(650.0)
         state.changeTargetRadius(20.0)
         state.updateProjectilePosition(100.0, 400.0)
-        val geom = fixture.first
-        val controller = ScrubbingController(state, geom.transformer(), geom.config())
-        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), geom.transformer()))
-        assertFalse(controller.handleMousePressed(state.currentTargetX(), geom.config().groundLevelY()))
+        val controller = newController(state)
+        controller.enable(newInspector(createSampleMatrix()))
+        assertFalse(controller.handleMousePressed(state.currentTargetX(), fixture.first.config().groundLevelY()))
         assertFalse(controller.checkDragging())
     }
 
@@ -108,16 +115,15 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
         state.changeTargetX(impactX)
         state.changeTargetRadius(20.0)
         state.updateProjectilePosition(impactX, impactY)
-        val controller = ScrubbingController(state, geom.transformer(), geom.config())
-        controller.enable(PhysicsTrajectoryInspectorAdapter(matrix, geom.transformer()))
+        val controller = newController(state)
+        controller.enable(newInspector(matrix))
         assertTrue(controller.handleMousePressed(impactX, impactY) && controller.checkDragging())
     }
 
     @Test
     fun test_disabling_scrubbing_resets_state_and_clears_inspector() {
-        val geom = fixture.first
-        val controller = ScrubbingController(fixture.second.freshState(), geom.transformer(), geom.config())
-        controller.enable(PhysicsTrajectoryInspectorAdapter(createSampleMatrix(), geom.transformer()))
+        val controller = newController()
+        controller.enable(newInspector(createSampleMatrix()))
         assertTrue(controller.checkEnabled())
         controller.disable()
         assertFalse(controller.checkEnabled())
@@ -131,6 +137,8 @@ class ScrubbingAndHudTest : ISimulationTestSuite {
  * Pruebas unitarias de modelos de telemetría, ResultsHUD, TooltipRenderer y congelación de estela (SRP).
  */
 class HudAndTooltipFormattingTest : ISimulationTestSuite {
+
+    private val geom: TestSceneGeometry = TestSceneGeometry()
 
     override fun suiteName(): String {
         return "HudAndTooltipFormattingTest"
@@ -158,7 +166,7 @@ class HudAndTooltipFormattingTest : ISimulationTestSuite {
 
     @Test
     fun test_results_HUD_formats_total_flight_time_and_range_clearly() {
-        val hud = ResultsHUD(x = 30.0, y = 30.0)
+        val hud = geom.resultsHud()
         val lines = hud.formatLines(FlightSummary(totalFlightTime = 4.25, totalDistance = 120.80))
         assertEquals(3, lines.size)
         assertEquals("RESULTADOS DEL VUELO", lines[0])
@@ -166,9 +174,13 @@ class HudAndTooltipFormattingTest : ISimulationTestSuite {
         assertTrue(lines[2].contains("120.80 m"))
     }
 
+    private fun newTooltip(w: Double = 152.0, h: Double = 54.0, v: Double = 14.0): TooltipRenderer {
+        return TooltipRenderer(width = w, height = h, verticalOffset = v)
+    }
+
     @Test
     fun test_tooltip_renderer_formats_instantaneous_speed_and_height_in_real_time() {
-        val tooltip = TooltipRenderer()
+        val tooltip = newTooltip()
         val lines = tooltip.formatLines(TrajectoryPoint(x = 40.0, y = 25.5, time = 1.35, height = 25.5, speed = 31.85))
         assertEquals(2, lines.size)
         assertTrue(lines[0].contains("31.85 m/s"))
@@ -177,7 +189,7 @@ class HudAndTooltipFormattingTest : ISimulationTestSuite {
 
     @Test
     fun test_tooltip_bounds_stay_clamped_within_canvas_boundaries() {
-        val tooltip = TooltipRenderer(width = 150.0, height = 50.0, verticalOffset = 15.0)
+        val tooltip = newTooltip(w = 150.0, h = 50.0, v = 15.0)
         val boundsTop = tooltip.calculateTooltipBounds(200.0, 5.0, 900.0, 550.0)
         assertTrue(boundsTop.topY() >= 10.0 && boundsTop.topY() > 5.0)
         val boundsRight = tooltip.calculateTooltipBounds(895.0, 300.0, 900.0, 550.0)

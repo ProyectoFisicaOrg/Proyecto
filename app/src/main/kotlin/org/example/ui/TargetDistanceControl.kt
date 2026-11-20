@@ -7,8 +7,7 @@ import org.example.rendering.CoordinateTransformer
 /**
  * Especificación encapsulada de límites (18.00 m .. 312.00 m) y valor por defecto del objetivo (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TargetDistanceSpec internal constructor(
+data class TargetDistanceSpec(
     private val bounds: List<Double>,
     private val defaultValidator: INumericInputValidator
 ) : ITargetDistanceSpec {

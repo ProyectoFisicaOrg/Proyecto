@@ -9,8 +9,7 @@ import javafx.scene.text.FontWeight
 /**
  * Coordenadas encapsuladas de anclaje y dimensiones del lienzo para posicionar el tooltip (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TooltipAnchor internal constructor(
+data class TooltipAnchor(
     private val values: List<Double>
 ) : ITooltipAnchor {
 
@@ -41,8 +40,7 @@ data class TooltipAnchor internal constructor(
 /**
  * Rectángulo delimitador encapsulado del tooltip con operaciones geométricas de dominio (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TooltipBounds internal constructor(
+data class TooltipBounds(
     private val coords: List<Double>
 ) : ITooltipBounds {
 

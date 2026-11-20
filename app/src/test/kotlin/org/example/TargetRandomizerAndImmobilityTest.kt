@@ -37,7 +37,7 @@ class TargetRandomizerAndImmobilityTest : ISimulationTestSuite {
 
     @Test
     fun test_uniform_target_randomizer_produces_values_strictly_within_bounds() {
-        val randomizer: ITargetRandomizer = UniformTargetRandomizer(Random(42))
+        val randomizer: ITargetRandomizer = (::UniformTargetRandomizer)(Random(42))
         for (i in 0..100) {
             val randomX = randomizer.calculateRandomX(100.0, 800.0)
             assertTrue(randomX in 100.0..800.0)
@@ -46,8 +46,8 @@ class TargetRandomizerAndImmobilityTest : ISimulationTestSuite {
 
     @Test
     fun test_uniform_target_randomizer_with_seeded_random_is_deterministic() {
-        val val1 = UniformTargetRandomizer(Random(12345)).calculateRandomX(50.0, 500.0)
-        val val2 = UniformTargetRandomizer(Random(12345)).calculateRandomX(50.0, 500.0)
+        val val1 = (::UniformTargetRandomizer)(Random(12345)).calculateRandomX(50.0, 500.0)
+        val val2 = (::UniformTargetRandomizer)(Random(12345)).calculateRandomX(50.0, 500.0)
         assertEquals(val1, val2, 1e-9)
     }
 

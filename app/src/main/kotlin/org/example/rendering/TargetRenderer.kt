@@ -14,8 +14,7 @@ import org.example.model.ISimulationState
 /**
  * Estado visual instantáneo encapsulado para el dibujado de la diana (SRP + Encapsulación).
  */
-@ConsistentCopyVisibility
-data class TargetVisualFlags internal constructor(
+data class TargetVisualFlags(
     private val flags: List<Boolean>
 ) : ITargetVisualFlags {
 
@@ -225,8 +224,7 @@ class TargetDragInteraction(
 /**
  * Especificación inmutable de inicialización del subsistema gráfico de la diana (SRP).
  */
-@ConsistentCopyVisibility
-data class TargetInitSpec internal constructor(
+data class TargetInitSpec(
     private val pack: Pair<Pair<GraphicsContext, Canvas>, Pair<Pair<ISceneConfig, ISimulationState>, Pair<Pair<(Double) -> Unit, () -> Unit>, ITargetRandomizer?>>>
 ) : ITargetInitSpec {
 
@@ -266,6 +264,10 @@ data class TargetInitSpec internal constructor(
 
     override fun customRandomizer(): ITargetRandomizer? {
         return pack.second.second.second
+    }
+
+    override fun buildRenderer(): ITargetRenderer {
+        return TargetRenderer(this)
     }
 }
 
@@ -349,17 +351,9 @@ class TargetRenderer(
     radiusPx: Double = 20.0
 ) : ITargetRenderer {
 
-    constructor(
-        gc: GraphicsContext,
-        cfg: ISceneConfig,
-        canvas: Canvas,
-        state: ISimulationState,
-        onTargetPositionChanged: (Double) -> Unit,
-        onRepaint: () -> Unit,
-        randomizer: ITargetRandomizer? = null
-    ) : this(
-        state = state,
-        bundle = TargetBundleWiring.build(TargetInitSpec(gc, canvas, cfg, state, onTargetPositionChanged, onRepaint, randomizer)),
+    constructor(spec: ITargetInitSpec) : this(
+        state = spec.stateModel(),
+        bundle = TargetBundleWiring.build(spec),
         radiusPx = 20.0
     )
 

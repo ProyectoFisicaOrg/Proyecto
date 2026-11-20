@@ -17,7 +17,7 @@ import org.example.ui.ParameterControlBinding
 /**
  * Doble de prueba en memoria para [ISliderPort] (DIP).
  */
-private class FakeSliderPort(initial: Double) : ISliderPort {
+private data class FakeSliderPort(private val initial: Double) : ISliderPort {
     private val slot: MutableList<Triple<Double, Boolean, ((Double) -> Unit)?>> = mutableListOf(Triple(initial, false, null))
 
     override fun currentValue(): Double {
@@ -53,7 +53,7 @@ private class FakeSliderPort(initial: Double) : ISliderPort {
 /**
  * Doble de prueba en memoria para [ITextInputPort] que simula filtro en vivo, Enter y focusLost (DIP).
  */
-private class FakeTextInputPort(initial: String) : ITextInputPort {
+private data class FakeTextInputPort(private val initial: String) : ITextInputPort {
     private val slot: MutableList<Pair<Pair<String, Boolean>, Triple<((String) -> Boolean)?, ((String) -> Unit)?, (() -> Unit)?>>> =
         mutableListOf(Pair(Pair(initial, false), Triple(null, null, null)))
 
@@ -161,6 +161,12 @@ class ControlPanelBidirectionalSyncTest : ISimulationTestSuite {
         return "ControlPanelBidirectionalSyncTest"
     }
 
+    private fun bindControl(spec: INumericParameterSpec, slider: FakeSliderPort, field: FakeTextInputPort, onCommit: (Double) -> Unit): ParameterControlBinding {
+        val b = ParameterControlBinding(spec, slider, field, onCommit)
+        b.bind()
+        return b
+    }
+
     @Test
     fun test_moving_slider_updates_text_field_and_state_in_real_time() {
         val state: ISimulationState = states.freshState()
@@ -168,8 +174,7 @@ class ControlPanelBidirectionalSyncTest : ISimulationTestSuite {
         val slider = FakeSliderPort(45.0)
         val field = FakeTextInputPort("45")
         var angleRepaints = 0
-        val binding = ParameterControlBinding(angleSpec, slider, field, { v -> state.updateAngle(v); angleRepaints++ })
-        binding.bind()
+        bindControl(angleSpec, slider, field) { v -> state.updateAngle(v); angleRepaints++ }
         slider.dragTo(62.0)
         assertEquals("62", field.currentText())
         assertEquals(62.0, state.currentAngle(), 1e-4)
@@ -182,7 +187,7 @@ class ControlPanelBidirectionalSyncTest : ISimulationTestSuite {
         val velSpec: INumericParameterSpec = NumericParameterSpec("VELOCIDAD INICIAL (m/s)", 10.0, 100.0, 50.0, allowDecimal = false)
         val velSlider = FakeSliderPort(50.0)
         val velField = FakeTextInputPort("50")
-        ParameterControlBinding(velSpec, velSlider, velField, { state.updateVelocity(it) }).bind()
+        bindControl(velSpec, velSlider, velField) { state.updateVelocity(it) }
         velField.typeUserText("75")
         assertEquals(75.0, velSlider.currentValue(), 1e-4)
         assertEquals(75.0, state.currentVelocity(), 1e-4)
@@ -195,7 +200,7 @@ class ControlPanelBidirectionalSyncTest : ISimulationTestSuite {
         val gravSpec: INumericParameterSpec = NumericParameterSpec("GRAVEDAD (m/s²)", 1.0, 30.0, 9.8, allowDecimal = true)
         val gravSlider = FakeSliderPort(9.8)
         val gravField = FakeTextInputPort("9.8")
-        ParameterControlBinding(gravSpec, gravSlider, gravField, { state.updateGravity(it) }).bind()
+        bindControl(gravSpec, gravSlider, gravField) { state.updateGravity(it) }
         gravField.typeUserText("3,7")
         gravField.pressEnterOrLoseFocus()
         assertEquals(3.7, gravSlider.currentValue(), 1e-4)
@@ -209,8 +214,7 @@ class ControlPanelBidirectionalSyncTest : ISimulationTestSuite {
         val massSpec: INumericParameterSpec = NumericParameterSpec("MASA (kg)", 1.0, 50.0, 10.0, allowDecimal = false)
         val slider = FakeSliderPort(10.0)
         val field = FakeTextInputPort("10")
-        val binding = ParameterControlBinding(massSpec, slider, field, { state.updateMass(it) })
-        binding.bind()
+        val binding = bindControl(massSpec, slider, field) { state.updateMass(it) }
         field.typeUserText("28")
         assertEquals(28.0, state.currentMass(), 1e-4)
         assertFallbackToTen(field, slider, state)
