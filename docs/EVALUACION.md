@@ -9,14 +9,14 @@
 
 | Aspecto | Resultado |
 |---|---|
-| Índice de calidad POO/SOLID | **96/100** |
-| Código (LOC) | 7,448 |
+| Índice de calidad POO/SOLID | **97/100** |
+| Código (LOC) | 7,461 |
 | Archivos de código | 111 |
-| Clases (bien usadas) | 327 (183 OK) |
+| Clases (bien usadas) | 328 (184 OK) |
 | Código dentro de clases (%POO) | 99% |
 | Funciones fuera de clases | 0 |
-| Duplicación lógica | 1.7% |
-| Señales S/O/L/I/D | 0/0/0/0/3 |
+| Duplicación lógica | 1.6% |
+| Señales S/O/L/I/D | 0/0/0/0/0 |
 
 > Este informe **describe** lo que el análisis midió con los criterios ya establecidos de la materia. No es una nota.
 
@@ -27,14 +27,14 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Semáforo | Resultado |
 |---|---|
 | Aprobar (`estandar`) | **cumple** — 4/4 |
-| Destacar (`exigente`) | **no cumple** — 4/5 |
+| Destacar (`exigente`) | **cumple** — 5/5 |
 
 **Criterios para aprobar**
 
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
 | Código dentro de clases (%POO) | ≥ 85% | 99% | sí |
-| Duplicación lógica | ≤ 10% | 1.7% | sí |
+| Duplicación lógica | ≤ 10% | 1.6% | sí |
 | Funciones fuera de clases | ≤ 1 | 0 | sí |
 | Señales POO/SOLID críticas | ninguna | ninguna | sí |
 
@@ -43,10 +43,10 @@ Criterios de `CRITERIOS-CALIDAD.md`. **Aprobar** se juega con el perfil `estanda
 | Criterio | Requisito | Tu resultado | Cumple |
 |---|---|---|---|
 | Código dentro de clases (%POO) | ≥ 95% | 99% | sí |
-| Duplicación lógica | ≤ 5% | 1.7% | sí |
+| Duplicación lógica | ≤ 5% | 1.6% | sí |
 | Funciones fuera de clases | ≤ 1 | 0 | sí |
-| Señales POO/SOLID críticas | ninguna | Acoplamiento alto (CBO) | no |
-| Índice de calidad POO/SOLID | ≥ 60 | 96/100 | sí |
+| Señales POO/SOLID críticas | ninguna | ninguna | sí |
+| Índice de calidad POO/SOLID | ≥ 60 | 97/100 | sí |
 
 ### Cómo se calcula el %POO (y por qué no sube solo)
 
@@ -60,8 +60,8 @@ Sube cuando el código que hoy está **fuera** de clases pasa a ser método de u
 
 | Autor | Commits | Código (LOC) | Tests (LOC) | Docs (LOC) | Días activos | % del código |
 |---|---:|---:|---:|---:|---:|---:|
-| Agustin Marañon | 9 | 6,019 | 1,665 | 1 | 10 | 88% |
-| matteocatania | 5 | 796 | 214 | 1 | 5 | 12% |
+| Agustin Marañon | 11 | 5,996 | 1,722 | 1 | 11 | 88% |
+| matteocatania | 5 | 795 | 200 | 1 | 5 | 12% |
 
 > _El LOC de autoría lo calcula RepoSense sobre el historial y puede diferir del LOC de código del análisis de calidad (que mira solo el estado de `main`)._
 
@@ -71,9 +71,7 @@ Sube cuando el código que hoy está **fuera** de clases pasa a ser método de u
 
 Reúne lo que el análisis marcó y lo que todavía falta para cada semáforo. Cuando la señal se puede asociar a archivos, se indican para orientar la revisión. No es una nota.
 
-| Falla | Tu resultado | Requisito | Archivos |
-|---|---|---|---|
-| Señales POO/SOLID críticas | Acoplamiento alto (CBO) | Destacar: ninguna | `app/src/main/kotlin/org/example/CannonSimulation.kt`, `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt`, `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt` |
+_No se detectaron fallas: no hay criterios pendientes ni señales en el análisis._
 
 ## 4. Aspectos evaluados
 
@@ -83,13 +81,13 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Un resumen numérico (0-100) que combina la riqueza de clases bien usadas con la penalización por señales POO/SOLID y duplicación, y luego aplica topes duros.
 - **Por qué importa:** Ordena y prioriza la revisión: un índice bajo indica varias señales que conviene mirar juntas.
-- **Tu resultado:** índice **96/100**
+- **Tu resultado:** índice **97/100**
 
 ### 2. Duplicación lógica (DRY) (duplicacion) — sin señales
 
 - **Qué mide:** Porcentaje de bloques de LÓGICA repetidos. Quedan fuera imports/includes, anotaciones, declaraciones de campos y comentarios/Javadoc/docstrings: esos bloques son boilerplate, no lógica.
 - **Por qué importa:** Cada copia de lógica se mantiene por separado: un arreglo hay que repetirlo y los defectos se multiplican.
-- **Tu resultado:** **1.7%** de duplicación lógica
+- **Tu resultado:** **1.6%** de duplicación lógica
 
 ### 3. Adopción de POO (% de código en clases) (poo) — sin señales
 
@@ -128,15 +126,11 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 - **Por qué importa:** Una función que hace varias cosas cuesta leerla, nombrarla y reutilizarla.
 - **Tu resultado:** **0** método(s)/función(es) largos o con muchos parámetros
 
-### 9. Acoplamiento alto (CBO) (acoplamiento) — con señales
+### 9. Acoplamiento alto (CBO) (acoplamiento) — sin señales
 
 - **Qué mide:** Cuánto depende una clase de otros tipos del proyecto. No cuentan los tipos de la plataforma (biblioteca estándar, DOM, motor Godot) ni los métodos/propiedades propias.
 - **Por qué importa:** Piezas muy enlazadas hacen que un cambio se propague y que sea difícil reemplazar partes.
-- **Tu resultado:** **3** clase(s) muy acoplada(s)
-- **Para investigar la causa:**
-    - ¿La clase conoce detalles internos de muchas otras?
-    - ¿Se puede cambiar una parte sin tocar las demás?
-    - ¿Los colaboradores llegan como parámetros o se crean por dentro?
+- **Tu resultado:** **0** clase(s) muy acoplada(s)
 
 ### 10. Herencia profunda (DIT) (herencia) — sin señales
 
@@ -182,7 +176,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 ### Archivos donde se originan las señales
 
-> Se listan **9** hallazgo(s) localizados en **4** archivo(s). La columna `Línea` es la línea del archivo donde el análisis detectó la señal; `—` indica una señal de nivel repositorio (sin archivo propio).
+> Se listan **6** hallazgo(s) localizados en **1** archivo(s). La columna `Línea` es la línea del archivo donde el análisis detectó la señal; `—` indica una señal de nivel repositorio (sin archivo propio).
 
 | Aspecto | Archivo | Línea | Hallazgo |
 |---|---|---:|---|
@@ -192,20 +186,17 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 | Duplicación lógica (DRY) | `app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt` | 67 | bloque de 8 líneas repetido 2 veces en app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt:67, app/src/test/kotlin/org/example/TargetDistanceEditableFieldTest.kt:30 |
 | Duplicación lógica (DRY) | `app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt` | 69 | bloque de 8 líneas repetido 2 veces en app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt:69, app/src/test/kotlin/org/example/TargetDistanceEditableFieldTest.kt:32 |
 | Duplicación lógica (DRY) | `app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt` | 77 | bloque de 8 líneas repetido 2 veces en app/src/test/kotlin/org/example/ControlPanelNumericInputTest.kt:77, app/src/test/kotlin/org/example/TargetDistanceEditableFieldTest.kt:40 |
-| Acoplamiento alto (CBO) | `app/src/main/kotlin/org/example/CannonSimulation.kt` | 163 | clase 'SimulationWorkspace' muy acoplada (CBO=8) |
-| Acoplamiento alto (CBO) | `app/src/main/kotlin/org/example/rendering/TargetRenderer.kt` | 346 | clase 'TargetRenderer' muy acoplada (CBO=8) |
-| Acoplamiento alto (CBO) | `app/src/main/kotlin/org/example/scrubbing/ScrubbingController.kt` | 263 | clase 'DefaultScrubbingController' muy acoplada (CBO=8) |
 
 ## 5. Evolución por commit
 
-Métricas calculadas sobre el estado de `main` en **cada commit** (20 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
+Métricas calculadas sobre el estado de `main` en **cada commit** (23 commits con trabajo), del primero al último. La calidad usa el perfil `exigente`; el aporte de código lo mide RepoSense. El índice puede **bajar** al crecer el proyecto: se acumulan señales.
 
 ```mermaid
 xychart-beta
     title "Índice POO/SOLID a lo largo de los commits"
-    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb", "8ff3ccd", "5e48314", "098c6a2", "5de1f3f", "f942ba6", "6669420", "93e284f", "0771dee", "13e105c", "6843beb", "30cf392", "32c704e"]
+    x-axis ["3edeb24", "c30dcd2", "d2de63d", "fdd5f7a", "e81c689", "adee280", "2f04017", "b92aafb", "8ff3ccd", "5e48314", "098c6a2", "5de1f3f", "f942ba6", "6669420", "93e284f", "0771dee", "13e105c", "6843beb", "30cf392", "32c704e", "fd450c9", "b191d7c", "1f69ef9"]
     y-axis "Índice" 0 --> 100
-    line [0, 50, 50, 59, 58, 72, 81, 80, 74, 85, 94, 94, 94, 94, 94, 96, 96, 96, 96, 96]
+    line [0, 50, 50, 59, 58, 72, 81, 80, 74, 85, 94, 94, 94, 94, 94, 96, 96, 96, 96, 96, 96, 97, 97]
 ```
 
 | # | Fecha | Commit | Autor | LOC | Índice | %POO | Duplic. | Sueltas |
@@ -230,89 +221,9 @@ xychart-beta
 | 18 | 2026-11-14 | `6843beb` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
 | 19 | 2026-11-16 | `30cf392` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
 | 20 | 2026-11-17 | `32c704e` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
-
-<!-- actividad-clases:inicio -->
-## Actividad en días de clase
-
-> Período evaluado **2026-08-14 → 2026-11-20** · **23 clases** (lunes, viernes) · días de clase del calendario, extendidos hasta la fecha de corte.
->
-> `Commits` = commits de trabajo (no-merge); `Merges` = merges de PR (también son push). Los días sin actividad dicen **sin actividad**. El cuadro principal usa sólo las fechas de clase del calendario oficial.
->
-> **Aportes fuera del calendario:** cada alumno tiene un cuadro aparte con las fechas no lectivas con actividad, desde **2026-08-14** hasta **2026-11-20** (ventana de aportes). Esas fechas no forman parte del cuadro principal, pero se muestran para no perder trabajo hecho en fines de semana, feriados o después del período.
->
-> Se recorre `git log --all` sobre un mirror (todas las ramas y `refs/pull/*`), con deduplicación por commit. Fecha = fecha de autor en UTC-3. Los commits locales no pusheados no se ven. Si el trabajo fue en pareja y el commit es de otra persona, figura a nombre del autor del commit; para reflejarlo, usar `Co-authored-by` o una nota manual.
->
-> Sección informativa: no modifica el semáforo de aprobación.
-
-### Agustin Marañon
-
-**10/23 clases con actividad** · 9 commits · 9 merges
-
-| Fecha | Marca | Repositorios | Commits / merges |
-|---|:--:|---|--:|
-| 2026-08-14 | No | sin actividad | 0 / 0 |
-| 2026-08-21 | **Sí** | Proyecto | 2 / 0 |
-| 2026-08-24 | No | sin actividad | 0 / 0 |
-| 2026-08-28 | **Sí** | Proyecto | 1 / 1 |
-| 2026-08-31 | No | sin actividad | 0 / 0 |
-| 2026-09-04 | **Sí** | Proyecto | 1 / 1 |
-| 2026-09-07 | **Sí** | Proyecto | 1 / 0 |
-| 2026-09-14 | **Sí** | Proyecto | 0 / 1 |
-| 2026-09-25 | **Sí** | Proyecto | 0 / 1 |
-| 2026-09-28 | No | sin actividad | 0 / 0 |
-| 2026-10-02 | No | sin actividad | 0 / 0 |
-| 2026-10-05 | **Sí** | Proyecto | 1 / 1 |
-| 2026-10-09 | No | sin actividad | 0 / 0 |
-| 2026-10-16 | No | sin actividad | 0 / 0 |
-| 2026-10-19 | No | sin actividad | 0 / 0 |
-| 2026-10-23 | No | sin actividad | 0 / 0 |
-| 2026-10-26 | No | sin actividad | 0 / 0 |
-| 2026-10-30 | **Sí** | Proyecto | 1 / 2 |
-| 2026-11-02 | No | sin actividad | 0 / 0 |
-| 2026-11-06 | **Sí** | Proyecto | 1 / 1 |
-| 2026-11-13 | **Sí** | Proyecto | 1 / 1 |
-| 2026-11-16 | No | sin actividad | 0 / 0 |
-| 2026-11-20 | No | sin actividad | 0 / 0 |
-
-#### Aportes fuera del calendario de clases — Agustin Marañon
-
-_Sin aportes fuera del calendario de clases para Agustin Marañon._
-
-### matteocatania
-
-**5/23 clases con actividad** · 5 commits · 5 merges
-
-| Fecha | Marca | Repositorios | Commits / merges |
-|---|:--:|---|--:|
-| 2026-08-14 | **Sí** | Proyecto | 1 / 0 |
-| 2026-08-21 | No | sin actividad | 0 / 0 |
-| 2026-08-24 | No | sin actividad | 0 / 0 |
-| 2026-08-28 | No | sin actividad | 0 / 0 |
-| 2026-08-31 | **Sí** | Proyecto | 1 / 0 |
-| 2026-09-04 | **Sí** | Proyecto | 0 / 2 |
-| 2026-09-07 | No | sin actividad | 0 / 0 |
-| 2026-09-14 | No | sin actividad | 0 / 0 |
-| 2026-09-25 | No | sin actividad | 0 / 0 |
-| 2026-09-28 | No | sin actividad | 0 / 0 |
-| 2026-10-02 | No | sin actividad | 0 / 0 |
-| 2026-10-05 | No | sin actividad | 0 / 0 |
-| 2026-10-09 | No | sin actividad | 0 / 0 |
-| 2026-10-16 | **Sí** | Proyecto | 1 / 2 |
-| 2026-10-19 | **Sí** | Proyecto | 2 / 1 |
-| 2026-10-23 | No | sin actividad | 0 / 0 |
-| 2026-10-26 | No | sin actividad | 0 / 0 |
-| 2026-10-30 | No | sin actividad | 0 / 0 |
-| 2026-11-02 | No | sin actividad | 0 / 0 |
-| 2026-11-06 | No | sin actividad | 0 / 0 |
-| 2026-11-13 | No | sin actividad | 0 / 0 |
-| 2026-11-16 | No | sin actividad | 0 / 0 |
-| 2026-11-20 | No | sin actividad | 0 / 0 |
-
-#### Aportes fuera del calendario de clases — matteocatania
-
-_Sin aportes fuera del calendario de clases para matteocatania._
-
-<!-- actividad-clases:fin -->
+| 21 | 2026-11-20 | `fd450c9` | dqmdz-etec | 7,448 | 96 | 99% | 1.7% | 0 |
+| 22 | 2026-11-20 | `b191d7c` | dqmdz-etec | 7,460 | 97 | 99% | 1.6% | 0 |
+| 23 | 2026-11-20 | `1f69ef9` | dqmdz-etec | 7,461 | 97 | 99% | 1.6% | 0 |
 
 ---
 _Informe generado por la cátedra. Los criterios y umbrales de medición corresponden al perfil `exigente` de `calidad.py`; el semáforo de aprobación, a `CRITERIOS-CALIDAD.md` (ver `README.md`). Ante dudas, revisá el archivo señalado._
